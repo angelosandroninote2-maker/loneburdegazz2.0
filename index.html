@@ -204,7 +204,9 @@ body.indetail .top h1 { font-size: 22px; margin-top: 2px; }
 body.indetail .top { align-items: center; }
 body.indetail .topr { flex-direction: row-reverse; align-items: center; gap: 12px; }
 body.indetail #install { display: none; }
-body.indetail .drop small { display: none; }
+body.indetail .drop small, body.indetail .cutl { display: none; }
+.cutl { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink2); }
+.cutl input { width: 110px; padding: 5px 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; }
 .tabs button { padding: 10px 16px; font-weight: 600; color: var(--ink2); background: none; cursor: pointer; border: 1px solid transparent; border-bottom: 0; margin-bottom: -1px; }
 .tabs button:hover { color: var(--ink); }
 .tabs button[aria-current="page"] { color: var(--ink); background: var(--bg); border-color: var(--ink); border-bottom: 1px solid var(--bg); }
@@ -346,7 +348,8 @@ tr.picked td { background: var(--bg); }
       <div class="drop" id="drop">
         <input type="file" id="file" accept=".log,.txt,text/plain" multiple>
         <label class="btn" for="file">Carica un log</label>
-        <small>oppure trascina qui il file della serata</small>
+        <small>oppure trascina qui i file della serata</small>
+        <label class="cutl" for="cutword">Parti dal messaggio <input id="cutword" type="text" value="buona" maxlength="30" placeholder="vuoto = leggi tutto" autocomplete="off"></label>
         <span id="msg" role="status"></span>
       </div>
     </div>
@@ -526,6 +529,8 @@ try {
   var RE_BUY = new RegExp('^' + P + ' purchased "');
   var RE_STARTED = /^Started map "([^"]+)"/;
   var RE_GAMEOVER = /^Game Over: .*? (\d+):(\d+) after/;
+  var RE_GO_MAP = /^Game Over: \S+ \S+ (\S+) score/;
+  var RE_MS_MAP = /^World triggered "Match_Start" on "([^"]+)"/;
   var RE_SCORED = /^Team "(CT|TERRORIST)" scored "(\d+)"/;
   var RE_MSTATUS = /^MatchStatus: Score: (\d+):(\d+) on map/;
 
@@ -656,7 +661,10 @@ try {
         continue;
       }
       if (body.indexOf('World triggered "Match_Start"') === 0) {
-        if (!cur || cur.over) newMap('mappa sconosciuta', t);
+        var mm = RE_MS_MAP.exec(body);
+        if (!cur || cur.over) { newMap(mm ? mm[1] : 'mappa sconosciuta', t); cur.synth = true; }
+        else if (cur.name === 'mappa sconosciuta' && mm) { cur.name = mm[1]; cur.label = mapLabel(mm[1]); }
+        if (cur.synth) cur.startTime = t; /* log tagliato: la mappa parte dal Match_Start */
         cur.players = {}; cur.sui = []; cur.skip = {}; cur.matchStarts++;
         /* il tempo per squadra si conta dalla partenza vera: chi è già in una squadra riparte da lì */
         cur.segs = {};
@@ -665,6 +673,8 @@ try {
       }
       if ((m = RE_GAMEOVER.exec(body))) {
         if (cur && !cur.over) {
+          var gm = RE_GO_MAP.exec(body);
+          if (gm && cur.name === 'mappa sconosciuta') { cur.name = gm[1]; cur.label = mapLabel(gm[1]); }
           cur.ctScore = +m[1]; cur.tScore = +m[2];
           cur.complete = true; cur.over = true; cur.endTime = t; cur.endAbs = absT;
           closeMap(cur);
@@ -672,7 +682,7 @@ try {
         continue;
       }
       if (!cur || cur.over) {
-        if (body.charAt(0) === '"' && !cur) newMap('mappa sconosciuta', t);
+        if (body.charAt(0) === '"' && !cur) { newMap('mappa sconosciuta', t); cur.synth = true; }
         else continue;
       }
       cur.endTime = t;
@@ -1036,10 +1046,21 @@ try {
   }
   function recompute() { S.r = L.analyze(S.parsed, { overrides: S.overrides }); }
 
+  /* Taglio: la serata parte dal primo messaggio in chat che contiene la parola scelta (di solito "buona"). */
+  function cutFrom(text, word) {
+    var w = String(word || '').trim().toLowerCase();
+    if (!w) return null;
+    var lines = text.split(/\r?\n/), re = /^L \d\d\/\d\d\/\d{4} - (\d\d:\d\d:\d\d): "([^"<]*)<\d+><[^>]*>(?:<[^>]*>)?" say(?:_team)? "(.*)"\s*$/;
+    for (var k = 0; k < lines.length; k++) {
+      var m = re.exec(lines[k]);
+      if (m && m[3].toLowerCase().indexOf(w) >= 0) return { text: lines.slice(k).join('\n'), who: m[2], time: m[1], dropped: k };
+    }
+    return null;
+  }
   function readFiles(files) {
     var list = Array.prototype.slice.call(files);
     if (!list.length) return;
-    list.sort(function (a, b) { return a.name < b.name ? -1 : 1; });
+    list.sort(function (a, b) { return a.name < b.name ? -1 : a.name > b.name ? 1 : 0; });
     Promise.all(list.map(function (f) {
       return new Promise(function (ok, no) {
         var fr = new FileReader();
@@ -1048,7 +1069,18 @@ try {
         fr.readAsText(f);
       });
     })).then(function (texts) {
-      load(texts.join('\n'), list.map(function (f) { return f.name; }).join(', '));
+      var used = [], parts = [];
+      list.forEach(function (f, n) { if (/^L \d\d\/\d\d\/\d{4} - /m.test(texts[n])) { used.push(f.name); parts.push(texts[n]); } });
+      if (!parts.length) { $('#msg').textContent = 'Non ho trovato righe di log in questi file.'; return; }
+      var all = parts.join('\n'), word = ($('#cutword') || {}).value || '';
+      try { localStorage.setItem('lbg-cut', word); } catch (e) {}
+      var cut = cutFrom(all, word), note;
+      if (cut) { all = cut.text; note = 'Parto dal messaggio “' + word.trim() + '” di ' + cut.who + ' alle ' + cut.time.slice(0, 5) + ' (scartate ' + nf.format(cut.dropped) + ' righe prima).'; }
+      else if (word.trim()) note = 'Non ho trovato “' + word.trim() + '” in chat: ho letto tutto il log.';
+      else note = '';
+      var label = used.length > 3 ? plural(used.length, 'file', 'file') + ' (' + used[0] + ' … ' + used[used.length - 1] + ')' : used.join(', ');
+      load(all, label);
+      if (S.parsed && note) $('#msg').textContent = (used.length > 1 ? 'Uniti ' + used.length + ' file. ' : '') + note;
     }, function () { $('#msg').textContent = 'Non riesco a leggere il file.'; });
   }
   $('#file').addEventListener('change', function (e) { readFiles(e.target.files); e.target.value = ''; });
@@ -1815,6 +1847,7 @@ try {
         : 'Apri il menu del browser (⋮) e scegli “Installa app” oppure “Aggiungi a schermata Home”. In Edge e Chrome per computer compare anche l’icona di installazione nella barra dell’indirizzo.';
     });
   })();
+  try { var cw = localStorage.getItem('lbg-cut'); if (cw !== null && $('#cutword')) $('#cutword').value = cw; } catch (e) {}
   load(DEMO, 'Dati di esempio: il log del 28/09/2026', 'demo');
   setView((location.hash || '').slice(1) || 'archivio');
   initArchive();
