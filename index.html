@@ -322,6 +322,9 @@ tr.picked td { background: var(--bg); }
 .fzchip { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line); background: var(--bg); padding: 4px 6px 4px 4px; font-weight: 600; font-size: 14px; }
 .fzchip button { border: 1px solid var(--line); background: var(--surface); color: var(--ink2); font-size: 12px; padding: 2px 6px; cursor: pointer; }
 .fzchip button:hover { border-color: var(--ink); color: var(--ink); }
+.fzbench { max-width: 760px; margin: 14px auto 0; background: var(--bg); border-style: dashed; }
+.fzbench .fzlist { justify-content: center; }
+.fzbench h3 { justify-content: center; }
 .fzrest { margin-top: 12px; }
 .fzrest h4 { font-size: 13px; color: var(--muted); font-weight: 600; margin-bottom: 8px; }
 .fzprev { margin-top: 18px; border: 1px solid var(--line); background: #0f1215; }
@@ -337,7 +340,7 @@ table.ptab { border-collapse: collapse; font-size: 13px; min-width: 100%; }
 table.ptab th, table.ptab td { border: 1px solid var(--line); padding: 5px 7px; text-align: center; white-space: nowrap; }
 table.ptab thead th { background: var(--surface); font-weight: 700; position: sticky; top: 0; }
 table.ptab th.pn2 { writing-mode: vertical-rl; transform: rotate(180deg); padding: 8px 4px; font-size: 12px; min-width: 32px; }
-table.ptab td.pcell { color: #12171c; font-family: var(--f-mono); font-size: 11px; min-width: 44px; cursor: default; }
+table.ptab td.pcell { color: #000; font-family: var(--f-body); font-weight: 800; font-size: 13px; min-width: 48px; cursor: default; }
 table.ptab td.pcell.edit { cursor: pointer; }
 table.ptab td.pcell.ov { box-shadow: inset 0 0 0 2px #12171c; }
 table.ptab td.pn { color: #eceef0; }
@@ -422,6 +425,7 @@ table.ptab tr.ptot td { font-weight: 700; background: var(--surface); }
       </div>
       <p class="note" style="margin-bottom:10px">Clicca sul cerchio di un giocatore per mettere o cambiare la sua foto.</p>
       <div class="fzgrid"><div class="fzcol" id="fzA"></div><div class="fzcol" id="fzB"></div></div>
+      <div class="fzcol fzbench" id="fzC"></div>
       <div class="fzrest" id="fzrest"></div>
       <div class="fzprev"><canvas id="fzcanvas" width="1600" height="900" aria-label="Anteprima dell’infografica delle fazioni"></canvas></div>
       <div class="barrow" style="justify-content:flex-start">
@@ -1613,6 +1617,9 @@ try {
       var old = (A.docs || []).filter(function (d) { return d.id === pk.id; })[0];
       if (S.pres) pk.summary.pres = S.pres; else if (old && old.pres) pk.summary.pres = old.pres;
       if (old && old.presOv) pk.summary.presOv = old.presOv;
+      var bnow = resolveList(curBenchList());
+      pk.summary.bench = old && old.bench ? old.bench : bnow.map(function (p) { return p.k; });
+      pk.summary.benchN = old && old.benchN ? old.benchN : bnow.map(function (p) { return p.n; });
       await A.db.doc('dettagli/' + pk.id).set(pk.detail);
       await A.db.doc('battaglie/' + pk.id).set(pk.summary);
       S.savedId = pk.id; A.msg = 'Salvata.';
@@ -1784,7 +1791,31 @@ try {
   });
 
   /* ---------- fazioni ---------- */
-  var F = { init: false, saved: null, red: [], blue: [], flip: false, date: '', dateTouched: false, clan: 'Clan Lonewolf', imgs: {} };
+  var F = { init: false, saved: null, red: [], blue: [], bench: [], flip: false, date: '', dateTouched: false, clan: 'Clan Lonewolf', imgs: {} };
+  var DEF_BENCH = ['innominato94', '[LW]ilcarnefice', 'JackBeauregard'];
+  /* SteamID noti dai log vecchi (01/03/2022) */
+  var KNOWN = { 'innominato94': 'STEAM_1:0:148491467', '[lw]ilcarnefice': 'STEAM_1:0:32180600', 'jackbeauregard': 'STEAM_1:0:28217336' };
+  function nameKey(n) { return KNOWN[String(n).toLowerCase()] || 'name:' + n; }
+  function resolveKey(k, n) {
+    if (String(k).indexOf('name:') !== 0) return k;
+    var nm = String(n || k.slice(5)).toLowerCase();
+    if (KNOWN[nm]) return KNOWN[nm];
+    var pool = fzPool(); for (var q in pool) if (String(pool[q]).toLowerCase() === nm) return q;
+    return k;
+  }
+  /* un giocatore senza SteamID (mai visto nei log) prende il vero SteamID appena compare in archivio con lo stesso nickname */
+  function resolveList(list) {
+    var pool = fzPool(), byName = {};
+    Object.keys(pool).forEach(function (k) { byName[String(pool[k]).toLowerCase()] = k; });
+    var seen = {};
+    return list.map(function (p) {
+      if (String(p.k).indexOf('name:') === 0) { var nm = String(p.n).toLowerCase(); if (KNOWN[nm]) return { k: KNOWN[nm], n: p.n }; if (byName[nm]) return { k: byName[nm], n: p.n }; }
+      return p;
+    }).filter(function (p) { if (seen[p.k]) return false; seen[p.k] = 1; return true; });
+  }
+  function defBench() { return DEF_BENCH.map(function (n) { return { k: nameKey(n), n: n }; }); }
+  function curBenchList() { return F.init ? F.bench : (F.saved && F.saved.bench ? F.saved.bench : defBench()); }
+  function fzReady() { return !!(lastDoc() || (F.saved && F.saved.red)); }
   function lastDoc() { return A.docs && A.docs.length ? A.docs[0] : null; }
   function redIdxOf(d) { return d && d.names && d.names[2] === '1' ? 0 : 1; }
   function redSideOf(d) {
@@ -1812,15 +1843,30 @@ try {
   }
   function addDays(iso, n) { var d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); }
   function fzRedSide() { var s = redSideOf(lastDoc()) === 'T' ? 'CT' : 'T'; return F.flip ? (s === 'T' ? 'CT' : 'T') : s; }
+  function renderFazInit() {
+    if (F.init) return;
+    if (!fzReady()) { F.bench = curBenchList().slice(); return; }
+    var d = lastDoc();
+    if (F.saved && F.saved.red) { F.red = F.saved.red.slice(); F.blue = F.saved.blue.slice(); if (F.saved.clan != null) F.clan = F.saved.clan; } else fzFromDoc(d);
+    F.bench = F.saved && F.saved.bench ? F.saved.bench.slice() : DEF_BENCH.map(function (n) { return { k: nameKey(n), n: n }; });
+    var bk = {}; F.bench.forEach(function (p) { bk[p.k] = 1; });
+    F.red = F.red.filter(function (p) { return !bk[p.k]; }); F.blue = F.blue.filter(function (p) { return !bk[p.k]; });
+    F.init = true;
+  }
   function renderFaz() {
     var d = lastDoc();
-    if (!F.init && A.ready) {
+    if (!F.init && A.ready && !fzReady()) F.bench = curBenchList().slice();
+    if (!F.init && A.ready && fzReady()) {
       if (F.saved && F.saved.red) { F.red = F.saved.red.slice(); F.blue = F.saved.blue.slice(); if (F.saved.clan != null) F.clan = F.saved.clan; }
       else fzFromDoc(d);
+      F.bench = F.saved && F.saved.bench ? F.saved.bench.slice() : DEF_BENCH.map(function (n) { return { k: nameKey(n), n: n }; });
+      var bk = {}; F.bench.forEach(function (p) { bk[p.k] = 1; });
+      F.red = F.red.filter(function (p) { return !bk[p.k]; }); F.blue = F.blue.filter(function (p) { return !bk[p.k]; });
       F.init = true;
     }
     if (!F.dateTouched) F.date = d ? addDays(d.date, 7) : new Date().toISOString().slice(0, 10);
     $('#fzdate').value = F.date; if (document.activeElement !== $('#fzclan')) $('#fzclan').value = F.clan;
+    F.red = resolveList(F.red); F.blue = resolveList(F.blue); F.bench = resolveList(F.bench);
     var rs = fzRedSide();
     $('#faznote').textContent = d ? 'Ultima battaglia ' + dmy(d.date) + ': la Squadra Rossa era ' + (redSideOf(d) === 'T' ? 'Terroristi' : 'Antiterroristi') + '. Questa volta si invertono.' : 'Nessuna battaglia in archivio: componi le squadre a mano.';
     function col(list, team, side) {
@@ -1829,17 +1875,22 @@ try {
         '<div class="fzlist">' + (list.map(function (p) {
           return '<span class="fzchip">' + avHtml(p.k, p.n, team === 'red' ? 'fzr' : 'fzb', { click: true }) + esc(p.n) +
             '<button type="button" data-fzmove="' + esc(p.k) + '" data-to="' + other + '" title="Sposta nella Squadra ' + (other === 'red' ? 'Rossa' : 'Blu') + '">→ ' + (other === 'red' ? 'Rossa' : 'Blu') + '</button>' +
-            '<button type="button" data-fzmove="' + esc(p.k) + '" data-to="" title="Togli dalla squadra">✕</button></span>';
+            '<button type="button" data-fzmove="' + esc(p.k) + '" data-to="bench" title="Metti in panchina">↓ Panchina</button></span>';
         }).join('') || '<span class="note">Nessun giocatore.</span>') + '</div>';
     }
     var redSide = rs, blueSide = rs === 'T' ? 'CT' : 'T';
     $('#fzA').innerHTML = col(F.red, 'red', redSide);
     $('#fzB').innerHTML = col(F.blue, 'blue', blueSide);
+    $('#fzC').innerHTML = '<h3><i class="sw" style="background:#16191c"></i>Panchina <small>' + plural(F.bench.length, 'giocatore', 'giocatori') + '</small></h3><div class="fzlist">' + (F.bench.map(function (p) {
+      return '<span class="fzchip">' + avHtml(p.k, p.n, 'sqn', { click: true }) + esc(p.n) +
+        '<button type="button" data-fzmove="' + esc(p.k) + '" data-to="red" title="Sposta nella Squadra Rossa">↑ Rossa</button>' +
+        '<button type="button" data-fzmove="' + esc(p.k) + '" data-to="blue" title="Sposta nella Squadra Blu">↑ Blu</button></span>';
+    }).join('') || '<span class="note">Nessuno in panchina.</span>') + '</div>';
     var pool = fzPool(), used = {};
-    F.red.concat(F.blue).forEach(function (p) { used[p.k] = 1; });
+    F.red.concat(F.blue, F.bench).forEach(function (p) { used[p.k] = 1; });
     var rest = Object.keys(pool).filter(function (k) { return !used[k]; });
     $('#fzrest').innerHTML = rest.length ? '<h4>Altri giocatori dell’archivio</h4><div class="fzlist">' + rest.map(function (k) {
-      return '<span class="fzchip">' + avHtml(k, pool[k], 'sqn', { click: true }) + esc(pool[k]) + '<button type="button" data-fzmove="' + esc(k) + '" data-to="red">+ Rossa</button><button type="button" data-fzmove="' + esc(k) + '" data-to="blue">+ Blu</button></span>';
+      return '<span class="fzchip">' + avHtml(k, pool[k], 'sqn', { click: true }) + esc(pool[k]) + '<button type="button" data-fzmove="' + esc(k) + '" data-to="red">+ Rossa</button><button type="button" data-fzmove="' + esc(k) + '" data-to="blue">+ Blu</button><button type="button" data-fzmove="' + esc(k) + '" data-to="bench">+ Panchina</button></span>';
     }).join('') + '</div>' : '';
     var canW = A.ok && A.canWrite !== false;
     $('[data-fz="save"]').disabled = !canW;
@@ -1924,19 +1975,19 @@ try {
     var mv = e.target.closest && e.target.closest('[data-fzmove]');
     if (mv) {
       var k = mv.dataset.fzmove, to = mv.dataset.to, pool = fzPool();
-      var p = F.red.concat(F.blue).filter(function (q) { return q.k === k; })[0] || { k: k, n: pool[k] || k };
-      F.red = F.red.filter(function (q) { return q.k !== k; }); F.blue = F.blue.filter(function (q) { return q.k !== k; });
-      if (to === 'red') F.red.push(p); else if (to === 'blue') F.blue.push(p);
+      var p = F.red.concat(F.blue, F.bench).filter(function (q) { return q.k === k; })[0] || { k: k, n: pool[k] || k };
+      F.red = F.red.filter(function (q) { return q.k !== k; }); F.blue = F.blue.filter(function (q) { return q.k !== k; }); F.bench = F.bench.filter(function (q) { return q.k !== k; });
+      if (to === 'red') F.red.push(p); else if (to === 'blue') F.blue.push(p); else if (to === 'bench') F.bench.push(p);
       $('#fzmsg').textContent = 'Modifiche non salvate.'; renderFaz(); return;
     }
     var b = e.target.closest && e.target.closest('[data-fz]');
     if (!b) return;
     var a = b.dataset.fz;
     if (a === 'flip') { F.flip = !F.flip; renderFaz(); }
-    else if (a === 'reset') { fzFromDoc(lastDoc()); $('#fzmsg').textContent = 'Squadre prese dall’ultima battaglia (non ancora salvate).'; renderFaz(); }
+    else if (a === 'reset') { fzFromDoc(lastDoc()); var bk2 = {}; F.bench.forEach(function (p) { bk2[p.k] = 1; }); F.red = F.red.filter(function (p) { return !bk2[p.k]; }); F.blue = F.blue.filter(function (p) { return !bk2[p.k]; }); $('#fzmsg').textContent = 'Squadre prese dall’ultima battaglia (non ancora salvate).'; renderFaz(); }
     else if (a === 'save') {
       if (!A.db) return;
-      try { await A.db.doc('impostazioni/fazioni').set({ v: 1, red: F.red, blue: F.blue, clan: F.clan, ts: Date.now() }); $('#fzmsg').textContent = 'Squadre salvate: le vedono tutti.'; }
+      try { await A.db.doc('impostazioni/fazioni').set({ v: 1, red: F.red, blue: F.blue, bench: F.bench, clan: F.clan, ts: Date.now() }); $('#fzmsg').textContent = 'Squadre salvate: le vedono tutti.'; }
       catch (er) { $('#fzmsg').textContent = er && er.code === 'invalid_argument' ? 'Non hai il permesso di salvare.' : 'Salvataggio non riuscito.'; }
     }
     else if (a === 'png') {
@@ -1956,14 +2007,22 @@ try {
   try { var tf = new File([new Blob(['x'])], 'x.png', { type: 'image/png' }); if (navigator.canShare && navigator.canShare({ files: [tf] })) $('#fzshare').hidden = false; } catch (e) {}
 
   /* ---------- presenze ---------- */
-  var BENCH = ['Carnefice', 'Innominato', 'Macellaio'];
   var PCOL = { v: 'Presente', g: 'Ritardo (dopo le 22:15)', a: 'Ritardo extra (dopo le 22:30)', r: 'Non ha giocato', n: 'Panchina' };
   function presModel() {
     var docs = (A.docs || []).slice().sort(function (a, b) { return a.ts - b.ts; });
     var names = {};
     docs.forEach(function (d) { (d.players || []).forEach(function (p) { names[p.k] = p.n; }); if (d.pres) Object.keys(d.pres.p).forEach(function (k) { if (!names[k] && d.players && d.players.some(function (q) { return q.k === k; })) names[k] = d.pres.p[k].n; }); });
-    (F.saved && F.saved.red ? F.saved.red.concat(F.saved.blue) : F.red.concat(F.blue)).forEach(function (p) { names[p.k] = names[p.k] || p.n; });
-    var keys = Object.keys(names).sort(function (a, b) { return names[a].toLowerCase() < names[b].toLowerCase() ? -1 : 1; });
+    try { if (!F.init && A.ready) renderFazInit(); } catch (e) {}
+    var team = resolveList(F.red.concat(F.blue)), bench = resolveList(F.bench), curBench = {};
+    team.concat(bench).forEach(function (p) { names[p.k] = names[p.k] || p.n; });
+    bench.forEach(function (p) { curBench[p.k] = 1; });
+    docs.forEach(function (d) {
+      if (d.bench) d.bench = d.bench.map(function (k, i) { return resolveKey(k, d.benchN && d.benchN[i]); });
+      (d.bench || []).forEach(function (k, i) { if (!names[k]) names[k] = (d.benchN && d.benchN[i]) || k.replace(/^name:/, ''); });
+    });
+    var byN = function (a, b) { return names[a].toLowerCase() < names[b].toLowerCase() ? -1 : 1; };
+    var all = Object.keys(names);
+    var keys = all.filter(function (k) { return !curBench[k]; }).sort(byN).concat(all.filter(function (k) { return curBench[k]; }).sort(byN));
     var totR = 0, totB = 0;
     var rows = docs.map(function (d, i) {
       var ri = redIdxOf(d), pr = d.wins ? d.wins[ri] : 0, pb = d.wins ? d.wins[1 - ri] : 0;
@@ -1971,15 +2030,16 @@ try {
       var cells = keys.map(function (k) {
         var ov = d.presOv && d.presOv[k], e = d.pres && d.pres.p[k], played = (d.players || []).some(function (p) { return p.k === k; });
         var c, t = '';
+        var onBench = d.bench ? d.bench.indexOf(k) >= 0 : !!curBench[k];
         if (e && (played || e.c !== 'r')) { c = e.c; t = e.pre ? '' : e.t; }
         else if (played) c = d.pres ? 'v' : '?';
-        else c = 'r';
+        else c = onBench ? 'n' : 'r';
         if (ov) c = ov;
         return { k: k, c: c, t: t, ov: !!ov, auto: !d.pres };
       });
       return { d: d, n: i + 1, cells: cells, pr: pr, pb: pb, tr: totR, tb: totB };
     });
-    return { keys: keys, names: names, rows: rows };
+    return { keys: keys, names: names, rows: rows, bench: curBench };
   }
   function renderPres() {
     var M = presModel(), box = $('#pres');
@@ -1987,18 +2047,18 @@ try {
     $('#presnote').textContent = M.rows.length ? plural(M.rows.length, 'serata', 'serate') + (noPres ? ' · ' + noPres + ' senza orari: ricaricale con i log completi per avere i ritardi' : '') : '';
     if (!M.rows.length) { box.innerHTML = '<div class="empty">Le presenze compaiono dopo la prima battaglia salvata.</div>'; return; }
     var canW = A.ok && A.canWrite !== false;
-    var head = '<thead><tr><th>N°</th><th>Data</th>' + M.keys.map(function (k) { return '<th class="pn2">' + esc(M.names[k]) + '</th>'; }).join('') +
-      BENCH.map(function (b) { return '<th class="pn2">' + esc(b) + '</th>'; }).join('') + '<th>Parz.<br>Rossa</th><th>Parz.<br>Blu</th><th>Totale<br>Rossa</th><th>Totale<br>Blu</th></tr></thead>';
-    var cnt = {}; M.keys.forEach(function (k) { cnt[k] = { v: 0, g: 0, a: 0, r: 0 }; });
+    var head = '<thead><tr><th>N°</th><th>Data</th>' + M.keys.map(function (k) { return '<th class="pn2"' + (M.bench[k] ? ' title="In panchina" style="color:var(--muted)"' : '') + '>' + esc(M.names[k]) + '</th>'; }).join('') +
+      '<th>Parz.<br>Rossa</th><th>Parz.<br>Blu</th><th>Totale<br>Rossa</th><th>Totale<br>Blu</th></tr></thead>';
+    var cnt = {}; M.keys.forEach(function (k) { cnt[k] = { v: 0, g: 0, a: 0, r: 0, n: 0 }; });
     var body = M.rows.map(function (r) {
       return '<tr><td>' + r.n + '</td><td class="dt">' + dmy(r.d.date) + '</td>' + r.cells.map(function (c) {
-        if (cnt[c.k][c.c] != null) cnt[c.k][c.c]++;
+        var cc = c.c === '?' ? 'v' : c.c; if (cnt[c.k][cc] != null) cnt[c.k][cc]++;
         var cls = c.c === '?' ? 'pv' : 'p' + c.c;
         return '<td class="pcell ' + cls + (canW ? ' edit' : '') + (c.ov ? ' ov' : '') + '" data-pid="' + esc(r.d.id) + '" data-pk="' + esc(c.k) + '" title="' + esc(M.names[c.k] + ' · ' + (PCOL[c.c] || 'Presente (orario non disponibile)') + (c.t ? ' · entrato alle ' + c.t : '') + (c.ov ? ' · corretto a mano' : '') + (canW ? ' · clic per cambiare' : '')) + '">' + esc(c.t) + '</td>';
-      }).join('') + BENCH.map(function () { return '<td class="pcell pn" title="Panchina"></td>'; }).join('') +
+      }).join('') +
         '<td class="pts">' + r.pr + '</td><td class="pts">' + r.pb + '</td><td class="pts">' + r.tr + '</td><td class="pts">' + r.tb + '</td></tr>';
     }).join('');
-    var tot = '<tr class="ptot"><td></td><td class="dt">Verdi / gialli / arancioni / rossi</td>' + M.keys.map(function (k) { var c = cnt[k]; return '<td title="' + esc(M.names[k]) + '">' + c.v + '/' + c.g + '/' + c.a + '/' + c.r + '</td>'; }).join('') + BENCH.map(function () { return '<td></td>'; }).join('') + '<td colspan="4"></td></tr>';
+    var tot = '<tr class="ptot"><td></td><td class="dt">Verdi / gialli / arancioni / rossi</td>' + M.keys.map(function (k) { var c = cnt[k]; return '<td title="' + esc(M.names[k]) + '">' + c.v + '/' + c.g + '/' + c.a + '/' + c.r + '</td>'; }).join('') + '<td colspan="4"></td></tr>';
     box.innerHTML = '<table class="ptab">' + head + '<tbody>' + body + tot + '</tbody></table>';
     $('#presmsg').textContent = canW ? 'Clic su una casella per correggerla a mano (verde → giallo → arancione → rosso → nero → automatico).' : '';
   }
@@ -2045,14 +2105,13 @@ try {
     var rows = [], R = 1;
     rows.push('<row r="1">' + cell(1, 1, 'Plotone Lonewolf · Presenze', 1) + '</row>');
     rows.push('<row r="2">' + cell(2, 1, 'Verde: presente entro le 22:15 · Giallo: dopo le 22:15 · Arancione: dopo le 22:30 · Rosso: non ha giocato entro le 00:10 · Nero: panchina', 0) + '</row>');
-    var hdr = ['N°', 'Data'].concat(M.keys.map(function (k) { return M.names[k]; }), BENCH, ['Parz. Rossa', 'Parz. Blu', 'Totale Rossa', 'Totale Blu']);
+    var hdr = ['N°', 'Data'].concat(M.keys.map(function (k) { return M.names[k]; }), ['Parz. Rossa', 'Parz. Blu', 'Totale Rossa', 'Totale Blu']);
     rows.push('<row r="4">' + hdr.map(function (h, i) { return cell(4, i, h, 7); }).join('') + '</row>');
     R = 5;
     M.rows.forEach(function (r) {
       var cs = [cell(R, 0, r.n, 8), cell(R, 1, dmy(r.d.date), 8)];
       r.cells.forEach(function (c, i) { cs.push(cell(R, 2 + i, c.t, ST[c.c] || 2)); });
-      BENCH.forEach(function (b, i) { cs.push(cell(R, 2 + M.keys.length + i, '', 6)); });
-      var o = 2 + M.keys.length + BENCH.length;
+      var o = 2 + M.keys.length;
       [r.pr, r.pb, r.tr, r.tb].forEach(function (v, i) { cs.push(cell(R, o + i, v, 8)); });
       rows.push('<row r="' + R + '">' + cs.join('') + '</row>'); R++;
     });
@@ -2067,7 +2126,7 @@ try {
       '<fills count="8"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>' + fill('2FA84F') + fill('F2C94C') + fill('F2994A') + fill('E04848') + fill('16191C') + fill('E3E7EB') + '</fills>' +
       '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>' + bd + '</borders>' +
       '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
-      '<cellXfs count="9"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" applyFont="1"/>' + xf(0, 2, 1) + xf(0, 3, 1) + xf(0, 4, 1) + xf(0, 5, 1) + xf(2, 6, 1) + xf(3, 7, 1) + xf(0, 0, 1) + '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+      '<cellXfs count="9"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" applyFont="1"/>' + xf(3, 2, 1) + xf(3, 3, 1) + xf(3, 4, 1) + xf(3, 5, 1) + xf(2, 6, 1) + xf(3, 7, 1) + xf(0, 0, 1) + '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
     var files = [
       { name: '[Content_Types].xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>' },
       { name: '_rels/.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
