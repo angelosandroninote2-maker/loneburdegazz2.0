@@ -327,6 +327,32 @@ tr.picked td { background: var(--bg); }
 .fzbench h3 { justify-content: center; }
 .fzrest { margin-top: 12px; }
 .acc.plot { margin-top: 18px; border-color: var(--ink); }
+#plotprint { display: none; }
+@media print {
+  @page { size: A4; margin: 12mm; }
+  html, body { background: #fff !important; padding: 0 !important; }
+  body > *:not(#plotprint) { display: none !important; }
+  #plotprint { display: block !important; color: #12171c; font-family: var(--f-body); font-size: 11pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+#plotprint h1 { font-family: var(--f-display); font-weight: 900; font-size: 30pt; text-transform: uppercase; line-height: 1; }
+#plotprint .pp-sub { color: #444d57; margin: 4px 0 12px; font-size: 10.5pt; }
+#plotprint h2 { font-family: var(--f-display); font-weight: 800; font-size: 15pt; text-transform: uppercase; margin: 14px 0 6px; border-bottom: 2px solid #12171c; padding-bottom: 2px; }
+#plotprint .pp-filt { display: grid; grid-template-columns: 1.5fr 1fr; gap: 14px; font-size: 10pt; }
+#plotprint .pp-filt ul { margin: 0; padding-left: 16px; }
+#plotprint .pp-card { border: 1px solid #c9d0d6; padding: 8px 10px; margin-bottom: 8px; break-inside: avoid; }
+#plotprint .pp-card.cur { border-style: dashed; }
+#plotprint .pp-card h3 { font-size: 12pt; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+#plotprint .pp-card h3 b { font-family: var(--f-display); font-size: 18pt; }
+#plotprint .pp-card .m { font-size: 9pt; color: #444d57; }
+#plotprint .pp-bar { height: 7px; display: flex; margin: 5px 0; }
+#plotprint .pp-bar i { display: block; height: 7px; }
+#plotprint .pp-t { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 10pt; }
+#plotprint .pp-t > div { border-left: 4px solid #d63a3a; padding-left: 7px; }
+#plotprint .pp-t > div.b { border-left-color: #2a78d6; }
+#plotprint table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+#plotprint th, #plotprint td { border-bottom: 1px solid #d6dbe0; padding: 3px 5px; text-align: right; }
+#plotprint th:first-child, #plotprint td:first-child, #plotprint td.l, #plotprint th.l { text-align: left; }
+#plotprint .pp-foot { margin-top: 10px; font-size: 8.5pt; color: #6c7680; }
 .acc.plot > summary small { font-family: var(--f-body); font-size: 13px; font-weight: 500; text-transform: none; color: var(--muted); letter-spacing: 0; margin-left: 8px; }
 .plotgrid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; margin: 10px 0 14px; }
 .plh { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-bottom: 8px; }
@@ -488,6 +514,7 @@ table.ptab tr.psep td { background: var(--ink); color: var(--bg); text-align: le
                 <label>Cambiare poco <input type="range" min="0" max="100" value="0" data-pw="stab"><b></b></label>
               </div>
               <button type="button" class="btn go sm" data-plot="run">Calcola squadre</button>
+              <button type="button" class="btn ghost sm" data-plot="pdf" title="Crea un PDF con giocatori, cursori, proposte e voti">Genera PDF</button>
             </div>
           </div>
           <div id="plotres"></div>
@@ -2473,6 +2500,47 @@ try {
       rows.map(function (a) { return '<tr><td class="l"><span style="display:inline-flex;align-items:center;gap:8px;font-weight:600">' + avHtml(a.k, a.n, 'sqn') + esc(a.n) + '</span></td><td>' + a.ev + '</td><td><b>' + (a.voto == null ? '–' : a.voto) + '</b></td><td>' + (a.forza == null ? '–' : a.forza.toFixed(1)) + '</td><td>' + Math.round(a.pres * 100) + '%</td><td>' + Math.round(a.punt * 100) + '%</td><td>' + Math.round(a.hs * 100) + '%</td><td class="l">' + a.stile + '</td></tr>'; }).join('') + '</tbody></table>' +
       '<p class="note" style="margin-top:8px">Forza: 0 = il più basso del gruppo, 100 = il più alto, con più peso alle serate recenti. Con meno di 2 serate il voto è provvisorio.</p>' : '<div class="empty">Nessuna battaglia dal ' + dmy(RULES_SINCE) + ' in archivio.</div>';
   }
+  function plotPdfHtml() {
+    if (!PL.res || PL.res.err) plotRun();
+    var R = PL.res; if (!R || R.err) return null;
+    var M = R.M, all = plotPlayers();
+    var on = [], off = [];
+    all.forEach(function (p) { var inn = p.bench ? PL.off[p.k] === false : !PL.off[p.k]; (inn ? on : off).push(p); });
+    var nm = function (k) { var a = M.by[k]; return a ? a.n : ((all.filter(function (p) { return p.k === k; })[0] || { n: k }).n); };
+    var vt = function (k) { var a = M.by[k]; return a && a.voto != null ? ' (' + a.voto + ')' : ''; };
+    function card(s, title, cur) {
+      var E = s.E, p = Math.round(E.p * 100), pf = Math.round(E.pFull * 100);
+      return '<div class="pp-card' + (cur ? ' cur' : '') + '"><h3><span>' + title + '</span><b>' + p + '% – ' + (100 - p) + '%</b><span class="m">a ranghi completi ' + pf + '% – ' + (100 - pf) + '%' + (s.moves != null ? ' · ' + plural(s.moves, 'spostamento', 'spostamenti') + ' rispetto ad ora' : '') + '</span></h3>' +
+        '<div class="pp-bar"><i style="width:' + p + '%;background:#d63a3a"></i><i style="width:' + (100 - p) + '%;background:#2a78d6"></i></div>' +
+        '<div class="pp-t"><div><b>Squadra Rossa</b> · ' + s.t1.length + '<br>' + s.t1.map(function (k) { return esc(nm(k) + vt(k)); }).join(', ') + '<div class="m">presenze attese ' + E.ex1.toFixed(1) + ' · puntualità ' + Math.round(E.pu1 * 100) + '%</div></div>' +
+        '<div class="b"><b>Squadra Blu</b> · ' + s.t2.length + '<br>' + s.t2.map(function (k) { return esc(nm(k) + vt(k)); }).join(', ') + '<div class="m">presenze attese ' + E.ex2.toFixed(1) + ' · puntualità ' + Math.round(E.pu2 * 100) + '%</div></div></div></div>';
+    }
+    var w = PL.w, sea = '';
+    try { var fs3 = seasonOf(F.date); if (fs3) sea = ' · ' + fs3.label; } catch (e) {}
+    var rows = M.list.slice().sort(function (a, b) { return (b.forza == null ? -999 : b.forza) - (a.forza == null ? -999 : a.forza); });
+    var now = new Date();
+    return '<h1>Plotonometro</h1><div class="pp-sub">' + esc((F.clan || '').trim() || 'Clan') + ' · proposte per la serata del ' + dmy(F.date) + sea + ' · generato il ' + now.toLocaleDateString('it-IT') + ' alle ' + now.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) + '</div>' +
+      '<h2>Filtri usati</h2><div class="pp-filt"><div><b>Giocatori considerati (' + on.length + '):</b> ' + on.map(function (p) { return esc(p.n + vt(p.k)); }).join(', ') +
+      (off.length ? '<br><b>Esclusi (' + off.length + '):</b> ' + off.map(function (p) { return esc(p.n) + (p.bench ? ' (panchina)' : ''); }).join(', ') : '') + '</div>' +
+      '<div><b>Quanto conta:</b><ul><li>Forza ' + w.forza + '</li><li>Presenze ' + w.pres + '</li><li>Puntualità ' + w.punt + '</li><li>Stile di gioco ' + w.stile + '</li><li>Cambiare poco ' + w.stab + '</li></ul></div></div>' +
+      '<h2>Squadre</h2>' + (R.cur ? card(R.cur, 'Squadre attuali', true) : '') + R.top.map(function (s, i) { return card(s, 'Proposta ' + (i + 1), false); }).join('') +
+      '<h2 style="break-before:page">Voti del Plotonometro</h2><table><thead><tr><th>Giocatore</th><th>Serate</th><th>Forza</th><th>Kill–morti/mappa</th><th>Presenze</th><th>Puntuale</th><th>HS %</th><th class="l">Stile</th></tr></thead><tbody>' +
+      rows.map(function (a) { return '<tr><td>' + esc(a.n) + '</td><td>' + a.ev + '</td><td><b>' + (a.voto == null ? '–' : a.voto) + '</b></td><td>' + (a.forza == null ? '–' : a.forza.toFixed(1)) + '</td><td>' + Math.round(a.pres * 100) + '%</td><td>' + Math.round(a.punt * 100) + '%</td><td>' + Math.round(a.hs * 100) + '%</td><td class="l">' + a.stile + '</td></tr>'; }).join('') + '</tbody></table>' +
+      '<div class="pp-foot">Calcolato su ' + plural(M.docs.length, 'battaglia', 'battaglie') + ' dal ' + dmy(RULES_SINCE) + ' (divieto di AWP, SCAR-20 e G3SG1), con più peso alle serate recenti. La prima percentuale tiene conto di quanto spesso ognuno è presente, la seconda vale se vengono tutti. Forza: 0 = il più basso del gruppo, 100 = il più alto. LONEBURDEGAZZ 2.0</div>';
+  }
+  function plotPdf() {
+    var html = plotPdfHtml();
+    if (!html) { $('#fzmsg').textContent = 'Spunta almeno 2 giocatori per generare il PDF.'; return; }
+    var box = document.getElementById('plotprint');
+    if (!box) { box = document.createElement('div'); box.id = 'plotprint'; document.body.appendChild(box); }
+    box.innerHTML = html;
+    renderPlot();
+    var old = document.title; document.title = 'Plotonometro ' + F.date;
+    var done = function () { document.title = old; window.removeEventListener('afterprint', done); };
+    window.addEventListener('afterprint', done);
+    setTimeout(function () { try { window.print(); } catch (e) {} setTimeout(done, 1500); }, 50);
+    $('#fzmsg').textContent = 'Nella finestra di stampa scegli “Salva come PDF”.';
+  }
   document.addEventListener('change', function (e) {
     var c = e.target.closest && e.target.closest('[data-plk]');
     if (c) { var k = c.dataset.plk, isB = plotPlayers().some(function (p) { return p.k === k && p.bench; }); if (isB) PL.off[k] = c.checked ? false : undefined; else PL.off[k] = !c.checked; PL.res = null; renderPlot(); }
@@ -2484,6 +2552,7 @@ try {
   document.addEventListener('click', function (e) {
     var b = e.target.closest && e.target.closest('[data-plot]'); if (!b) return;
     if (b.dataset.plot === 'run') { plotRun(); renderPlot(); }
+    else if (b.dataset.plot === 'pdf') plotPdf();
     else if (b.dataset.plot === 'apply' && PL.res && PL.res.top) {
       var s = PL.res.top[+b.dataset.i], nm = function (k) { var p = plotPlayers().filter(function (q) { return q.k === k; })[0]; return p ? p.n : k; };
       var used = {}; s.t1.concat(s.t2).forEach(function (k) { used[k] = 1; });
