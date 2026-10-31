@@ -403,6 +403,7 @@ tr.picked td { background: var(--bg); }
         <button type="button" class="btn sm" data-fz="save">Salva squadre</button>
         <span class="note" id="fzmsg" role="status"></span>
       </div>
+      <p class="note" style="margin-bottom:10px">Clicca sul cerchio di un giocatore per mettere o cambiare la sua foto.</p>
       <div class="fzgrid"><div class="fzcol" id="fzA"></div><div class="fzcol" id="fzB"></div></div>
       <div class="fzrest" id="fzrest"></div>
       <div class="fzprev"><canvas id="fzcanvas" width="1600" height="900" aria-label="Anteprima dell’infografica delle fazioni"></canvas></div>
@@ -1059,7 +1060,7 @@ try {
   function avHtml(key, name, cls, o) {
     o = o || {};
     var img = FACES[key], tag = o.click ? 'button' : 'span';
-    return '<' + tag + (o.click ? ' type="button" data-face="' + esc(key) + '" title="' + (img ? 'Cambia la foto di ' : 'Aggiungi la foto di ') + esc(name) + '"' : '') + ' class="av ' + (cls || '') + (o.big ? ' big' : '') + '">' +
+    return '<' + tag + (o.click ? ' type="button" data-face="' + esc(key) + '" data-fname="' + esc(name) + '" title="' + (img ? 'Cambia la foto di ' : 'Aggiungi la foto di ') + esc(name) + '"' : '') + ' class="av ' + (cls || '') + (o.big ? ' big' : '') + '">' +
       (img ? '<img src="' + esc(img) + '" alt="">' : '<span aria-hidden="true">' + esc(initial(name)) + '</span>') + '</' + tag + '>';
   }
   function kd(k, d) { return k / Math.max(d, 1); }
@@ -1764,7 +1765,7 @@ try {
       var other = team === 'red' ? 'blue' : 'red';
       return '<h3><i class="sw ' + (team === 'red' ? 'ros' : 'blu') + '"></i>Squadra ' + (team === 'red' ? 'Rossa' : 'Blu') + ' <small>' + (side === 'T' ? 'Terroristi' : 'Antiterroristi') + ' · ' + plural(list.length, 'giocatore', 'giocatori') + '</small></h3>' +
         '<div class="fzlist">' + (list.map(function (p) {
-          return '<span class="fzchip">' + avHtml(p.k, p.n, team === 'red' ? 'fzr' : 'fzb') + esc(p.n) +
+          return '<span class="fzchip">' + avHtml(p.k, p.n, team === 'red' ? 'fzr' : 'fzb', { click: true }) + esc(p.n) +
             '<button type="button" data-fzmove="' + esc(p.k) + '" data-to="' + other + '" title="Sposta nella Squadra ' + (other === 'red' ? 'Rossa' : 'Blu') + '">→ ' + (other === 'red' ? 'Rossa' : 'Blu') + '</button>' +
             '<button type="button" data-fzmove="' + esc(p.k) + '" data-to="" title="Togli dalla squadra">✕</button></span>';
         }).join('') || '<span class="note">Nessun giocatore.</span>') + '</div>';
@@ -1776,7 +1777,7 @@ try {
     F.red.concat(F.blue).forEach(function (p) { used[p.k] = 1; });
     var rest = Object.keys(pool).filter(function (k) { return !used[k]; });
     $('#fzrest').innerHTML = rest.length ? '<h4>Altri giocatori dell’archivio</h4><div class="fzlist">' + rest.map(function (k) {
-      return '<span class="fzchip">' + avHtml(k, pool[k], 'sqn') + esc(pool[k]) + '<button type="button" data-fzmove="' + esc(k) + '" data-to="red">+ Rossa</button><button type="button" data-fzmove="' + esc(k) + '" data-to="blue">+ Blu</button></span>';
+      return '<span class="fzchip">' + avHtml(k, pool[k], 'sqn', { click: true }) + esc(pool[k]) + '<button type="button" data-fzmove="' + esc(k) + '" data-to="red">+ Rossa</button><button type="button" data-fzmove="' + esc(k) + '" data-to="blue">+ Blu</button></span>';
     }).join('') + '</div>' : '';
     var canW = A.ok && A.canWrite !== false;
     $('[data-fz="save"]').disabled = !canW;
@@ -1897,9 +1898,9 @@ try {
     renderRank();
     if (S.view === 'fazioni') renderFaz();
   }
-  function faceMsg(m) { var el = $('#facemsg'); if (el) el.textContent = m || ''; }
-  function canFace() {
-    if (S.source === 'demo') { faceMsg('Questa è una serata di esempio: carica un log vero per aggiungere le foto.'); return false; }
+  function faceMsg(m) { ['#facemsg', '#fzmsg'].forEach(function (s) { var el = $(s); if (el) el.textContent = m || ''; }); }
+  function canFace(fromFaz) {
+    if (!fromFaz && S.source === 'demo') { faceMsg('Questa è una serata di esempio: carica un log vero per aggiungere le foto.'); return false; }
     if (!A.ok || !A.db) { faceMsg('Le foto si salvano nell’archivio, che qui non è disponibile.'); return false; }
     if (A.canWrite === false) { faceMsg('Non hai il permesso di salvare le foto.'); return false; }
     return true;
@@ -1928,9 +1929,9 @@ try {
     await A.db.doc('volti/' + fid(key)).set({ v: 1, k: key, n: name, img: img });
   }
   function playerByKey(key) { var r = S.r && S.r.players.filter(function (p) { return p.key === key; })[0]; return r; }
-  async function pickFace(files, key) {
-    if (!files || !files.length || !canFace()) return;
-    var p = playerByKey(key); if (!p) return;
+  async function pickFace(files, who) {
+    if (!who || !files || !files.length || !canFace(who.fz)) return;
+    var key = who.k, p = playerByKey(key) || { name: who.n || key };
     faceMsg('Salvo la foto…');
     try { await saveFace(key, p.name, files[0]); faceMsg('Foto di ' + p.name + ' salvata.'); }
     catch (e) { faceMsg('Non riesco a leggere questa immagine.'); }
@@ -1953,7 +1954,11 @@ try {
   var faceFor = null;
   document.addEventListener('click', function (e) {
     var f = e.target.closest && e.target.closest('[data-face]');
-    if (f) { faceMsg(''); if (!canFace()) return; faceFor = f.dataset.face; $('#facefile').click(); return; }
+    if (f) {
+      var fz = !!f.closest('#v-fazioni');
+      faceMsg(''); if (!canFace(fz)) return;
+      faceFor = { k: f.dataset.face, n: f.dataset.fname, fz: fz }; $('#facefile').click(); return;
+    }
     var d = e.target.closest && e.target.closest('[data-facedel]');
     if (d && canFace()) {
       var k = d.dataset.facedel;
