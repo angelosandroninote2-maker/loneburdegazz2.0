@@ -326,6 +326,28 @@ tr.picked td { background: var(--bg); }
 .fzbench .fzlist { justify-content: center; }
 .fzbench h3 { justify-content: center; }
 .fzrest { margin-top: 12px; }
+.acc.plot { margin-top: 18px; border-color: var(--ink); }
+.acc.plot > summary small { font-family: var(--f-body); font-size: 13px; font-weight: 500; text-transform: none; color: var(--muted); letter-spacing: 0; margin-left: 8px; }
+.plotgrid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; margin: 10px 0 14px; }
+.plh { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-bottom: 8px; }
+.plsl { display: grid; gap: 6px; margin-bottom: 12px; }
+.plsl label { display: grid; grid-template-columns: 110px 1fr 34px; align-items: center; gap: 8px; font-size: 14px; }
+.plsl b { font-family: var(--f-mono); font-size: 12px; text-align: right; }
+.plchk { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--bg); padding: 4px 8px 4px 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.plchk.off { opacity: .45; }
+.plres { display: grid; gap: 12px; }
+.plcard { border: 1px solid var(--line); background: var(--bg); padding: 12px 14px; }
+.plcard.cur { border-style: dashed; }
+.plcard h5 { font-size: 15px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin-bottom: 8px; }
+.plcard h5 .pct { font-family: var(--f-display); font-weight: 900; font-size: 26px; }
+.plteams { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.plteam { border-left: 5px solid var(--ros); padding: 4px 10px; }
+.plteam.b { border-left-color: var(--blu); }
+.plteam .who2 { font-weight: 600; font-size: 14px; line-height: 1.6; }
+.plteam .meta { font-size: 12px; color: var(--ink2); }
+.plbar { height: 8px; display: flex; margin: 6px 0 2px; }
+.plbar i { display: block; } .plbar .r { background: var(--ros); } .plbar .b { background: var(--blu); }
+@media (max-width: 760px) { .plotgrid, .plteams { grid-template-columns: 1fr; } }
 .fzrest h4 { font-size: 13px; color: var(--muted); font-weight: 600; margin-bottom: 8px; }
 .fzprev { margin-top: 18px; border: 1px solid var(--line); background: #0f1215; }
 .fzprev canvas { display: block; width: 100%; height: auto; }
@@ -447,6 +469,32 @@ table.ptab tr.psep td { background: var(--ink); color: var(--bg); text-align: le
       <div class="fzgrid"><div class="fzcol" id="fzA"></div><div class="fzcol" id="fzB"></div></div>
       <div class="fzcol fzbench" id="fzC"></div>
       <div class="fzrest" id="fzrest"></div>
+      <details class="acc plot" id="plotbox">
+        <summary>Plotonometro <small>combina in automatico squadre bilanciate</small></summary>
+        <div class="inner">
+          <p class="note" id="plotnote"></p>
+          <div class="plotgrid">
+            <div>
+              <h4 class="plh">Chi gioca</h4>
+              <div class="fzlist" id="plotwho"></div>
+            </div>
+            <div>
+              <h4 class="plh">Quanto conta</h4>
+              <div class="plsl">
+                <label>Forza <input type="range" min="0" max="100" value="100" data-pw="forza"><b></b></label>
+                <label>Presenze <input type="range" min="0" max="100" value="30" data-pw="pres"><b></b></label>
+                <label>Puntualità <input type="range" min="0" max="100" value="10" data-pw="punt"><b></b></label>
+                <label>Stile di gioco <input type="range" min="0" max="100" value="10" data-pw="stile"><b></b></label>
+                <label>Cambiare poco <input type="range" min="0" max="100" value="0" data-pw="stab"><b></b></label>
+              </div>
+              <button type="button" class="btn go sm" data-plot="run">Calcola squadre</button>
+            </div>
+          </div>
+          <div id="plotres"></div>
+          <h4 class="plh" style="margin-top:18px">Voti del Plotonometro</h4>
+          <div class="tablewrap" id="plotvoti"></div>
+        </div>
+      </details>
       <div class="fzprev"><canvas id="fzcanvas" width="1600" height="900" aria-label="Anteprima dell’infografica delle fazioni"></canvas></div>
       <div class="barrow" style="justify-content:flex-start">
         <button type="button" class="btn go" data-fz="png">Scarica immagine</button>
@@ -1836,8 +1884,8 @@ try {
   /* ---------- fazioni ---------- */
   var F = { init: false, saved: null, red: [], blue: [], bench: [], flip: false, date: '', dateTouched: false, clan: 'Clan Lonewolf', imgs: {} };
   var DEF_BENCH = ['innominato94', '[LW]ilcarnefice', 'JackBeauregard'];
-  /* SteamID noti dai log vecchi (01/03/2022) */
-  var KNOWN = { 'innominato94': 'STEAM_1:0:148491467', '[lw]ilcarnefice': 'STEAM_1:0:32180600', 'jackbeauregard': 'STEAM_1:0:28217336' };
+  /* SteamID noti: innominato94 usa nel 2026 l'account 367528023 (nel 2022 era 148491467) */
+  var KNOWN = { 'innominato94': 'STEAM_1:0:367528023', 'innominato_94': 'STEAM_1:0:367528023', '[lw]ilcarnefice': 'STEAM_1:0:32180600', 'jackbeauregard': 'STEAM_1:0:28217336' };
   function nameKey(n) { return KNOWN[String(n).toLowerCase()] || 'name:' + n; }
   function resolveKey(k, n) {
     if (String(k).indexOf('name:') !== 0) return k;
@@ -1937,6 +1985,7 @@ try {
     }).join('') + '</div>' : '';
     var canW = A.ok && A.canWrite !== false;
     $('[data-fz="save"]').disabled = !canW;
+    try { renderPlot(); } catch (e) {}
     drawFaz();
   }
   function fzImg(key) {
@@ -2313,6 +2362,132 @@ try {
   function renderAll2() { try { renderStag(); renderPres(); renderRank(); if (S.view === 'fazioni') renderFaz(); } catch (e) {} }
   $('#ssel').addEventListener('change', function (e) { SEAS.sel = e.target.value; SEAS.confirm = false; renderStag(); });
   $('#rsel').addEventListener('change', function () { renderRank(); });
+
+  /* ---------- PLOTONOMETRO ---------- */
+  var RULES_SINCE = '2026-06-22';      /* divieto di AWP, SCAR-20 e G3SG1 */
+  var PL = { HUM: 13.6, B: 0.072, DEC: 0.85, off: {}, res: null, w: { forza: 100, pres: 30, punt: 10, stile: 10, stab: 0 } };
+  function plotModel() {
+    var docs = (A.docs || []).filter(function (d) { return d.date >= RULES_SINCE; }).sort(function (a, b) { return a.ts - b.ts; });
+    var n = docs.length, P = {};
+    docs.forEach(function (d, i) {
+      var wgt = Math.pow(PL.DEC, n - 1 - i);
+      (d.players || []).forEach(function (p) {
+        var a = P[p.k] || (P[p.k] = { k: p.k, n: p.n, ev: 0, ws: 0, s: 0, m: 0, K: 0, D: 0, A: 0, H: 0, pv: 0, pt: 0 });
+        a.n = p.n; a.ev++;
+        if (p.m) { a.ws += wgt * p.m; a.s += wgt * (p.K - p.D); }
+        a.m += p.m; a.K += p.K; a.D += p.D; a.A += p.A; a.H += p.H;
+        var e = d.pres && d.pres.p[p.k]; if (e) { a.pt++; if (e.c === 'v') a.pv++; }
+      });
+    });
+    var list = Object.keys(P).map(function (k) { var a = P[k]; a.forza = a.ws ? a.s / a.ws : null; a.pres = n ? a.ev / n : 0; a.punt = a.pt ? a.pv / a.pt : 0.75; var m = Math.max(a.m, 1); a.agg = (a.K + a.D) / m; a.hs = a.H / Math.max(a.K, 1); a.sup = a.A / m; return a; });
+    var act = list.filter(function (a) { return a.ev >= 2; });
+    function z(f) { var v = act.map(function (a) { return a[f]; }), mu = v.reduce(function (x, y) { return x + y; }, 0) / (v.length || 1), sd = Math.sqrt(v.reduce(function (x, y) { return x + (y - mu) * (y - mu); }, 0) / (v.length || 1)) || 1; list.forEach(function (a) { a['z_' + f] = (a[f] - mu) / sd; }); }
+    ['agg', 'hs', 'sup'].forEach(z);
+    list.forEach(function (a) { var c = { 'Assaltatore': a.z_agg, 'Preciso': a.z_hs, 'Supporto': a.z_sup }; a.stile = a.ev < 2 ? 'pochi dati' : Object.keys(c).sort(function (x, y) { return c[y] - c[x]; })[0]; });
+    var fs = act.map(function (a) { return a.forza; }).filter(function (x) { return x != null; });
+    var mn = Math.min.apply(null, fs), mx = Math.max.apply(null, fs), avg = fs.length ? fs.reduce(function (x, y) { return x + y; }, 0) / fs.length : 0;
+    var by = {}; list.forEach(function (a) { a.voto = a.forza == null || mx === mn ? null : Math.round(100 * (a.forza - mn) / (mx - mn)); by[a.k] = a; });
+    return { docs: docs, by: by, list: list, avg: avg };
+  }
+  function plotPlayers() {
+    var team = resolveList(F.red.concat(F.blue)), bench = resolveList(F.bench);
+    return team.map(function (p) { return { k: p.k, n: p.n, bench: false }; }).concat(bench.map(function (p) { return { k: p.k, n: p.n, bench: true }; }));
+  }
+  function plotEval(M, t1, t2) {
+    function f(k) { var a = M.by[k]; return a && a.forza != null && a.ev >= 2 ? a.forza : M.avg * 0.8; }
+    function pr(k) { var a = M.by[k]; return a ? Math.max(a.pres, 0.3) : 0.6; }
+    function st(t, usePres) { return t.reduce(function (s, k) { return s + (usePres ? pr(k) : 1) * (f(k) + PL.HUM); }, 0); }
+    var p = 1 / (1 + Math.exp(-PL.B * (st(t1, true) - st(t2, true))));
+    var pFull = 1 / (1 + Math.exp(-PL.B * (st(t1, false) - st(t2, false))));
+    function sum(t, fn) { return t.reduce(function (s, k) { return s + fn(k); }, 0); }
+    var ex1 = sum(t1, pr), ex2 = sum(t2, pr);
+    var pu = function (k) { var a = M.by[k]; return a ? a.punt : 0.75; }, ag = function (k) { var a = M.by[k]; return a && a.z_agg != null ? a.z_agg : 0; };
+    return { p: p, pFull: pFull, ex1: ex1, ex2: ex2, pu1: sum(t1, pu) / (t1.length || 1), pu2: sum(t2, pu) / (t2.length || 1), dag: Math.abs(sum(t1, ag) - sum(t2, ag)), f1: sum(t1, f), f2: sum(t2, f) };
+  }
+  function plotRun() {
+    var M = plotModel(), who = plotPlayers().filter(function (p) { return !PL.off[p.k] && !(p.bench && PL.off[p.k] !== false); });
+    var keys = who.map(function (p) { return p.k; }), n = keys.length;
+    if (n < 2) { PL.res = { err: 'Scegli almeno 2 giocatori.' }; return; }
+    var red = resolveList(F.red).map(function (p) { return p.k; }), blue = resolveList(F.blue).map(function (p) { return p.k; });
+    var w = PL.w, half = Math.floor(n / 2), seen = {}, sols = [];
+    function cost(t1, t2) {
+      var E = plotEval(M, t1, t2);
+      var moves = Math.min(t1.filter(function (k) { return red.indexOf(k) < 0; }).length + t2.filter(function (k) { return blue.indexOf(k) < 0; }).length,
+        t1.filter(function (k) { return blue.indexOf(k) < 0; }).length + t2.filter(function (k) { return red.indexOf(k) < 0; }).length);
+      var c = w.forza / 100 * (Math.abs(E.p - 0.5) + Math.abs(E.pFull - 0.5)) + w.pres / 100 * Math.abs(E.ex1 - E.ex2) / 2 + w.punt / 100 * Math.abs(E.pu1 - E.pu2) + w.stile / 100 * E.dag / 3 + w.stab / 100 * moves * 0.05;
+      return { c: c, E: E, moves: moves };
+    }
+    function combos(start, pick, acc) {
+      if (acc.length === pick) {
+        var t1 = acc.slice(), t2 = keys.filter(function (k) { return t1.indexOf(k) < 0; });
+        var id = t1.slice().sort().join('|'), id2 = t2.slice().sort().join('|');
+        if (seen[id] || seen[id2]) return; seen[id] = 1;
+        var r = cost(t1, t2); r.t1 = t1; r.t2 = t2; sols.push(r); return;
+      }
+      for (var i = start; i < keys.length; i++) { acc.push(keys[i]); combos(i + 1, pick, acc); acc.pop(); }
+    }
+    combos(0, half, []);
+    sols.sort(function (a, b) { return a.c - b.c; });
+    /* orientamento: la squadra che somiglia di più all'attuale Rossa resta Rossa */
+    sols.forEach(function (s) {
+      var keepR = s.t1.filter(function (k) { return red.indexOf(k) >= 0; }).length + s.t2.filter(function (k) { return blue.indexOf(k) >= 0; }).length;
+      var swapR = s.t2.filter(function (k) { return red.indexOf(k) >= 0; }).length + s.t1.filter(function (k) { return blue.indexOf(k) >= 0; }).length;
+      if (swapR > keepR) { var tmp = s.t1; s.t1 = s.t2; s.t2 = tmp; s.E = plotEval(M, s.t1, s.t2); }
+    });
+    var curK = keys.filter(function (k) { return red.indexOf(k) >= 0; }), curB = keys.filter(function (k) { return blue.indexOf(k) >= 0; });
+    PL.res = { M: M, top: sols.slice(0, 3), cur: curK.length && curB.length ? { t1: curK, t2: curB, E: plotEval(M, curK, curB) } : null, n: sols.length };
+  }
+  function plotTeamHtml(M, t, red, E1) {
+    var nm = function (k) { var a = M.by[k]; return a ? a.n : (plotPlayers().filter(function (p) { return p.k === k; })[0] || { n: k }).n; };
+    return '<div class="plteam' + (red ? '' : ' b') + '"><div class="who2">' + t.map(function (k) { var a = M.by[k]; return esc(nm(k)) + (a && a.voto != null ? ' <span class="meta">(' + a.voto + ')</span>' : ''); }).join(', ') + '</div>' +
+      '<div class="meta">' + (red ? 'Squadra Rossa' : 'Squadra Blu') + ' · ' + plural(t.length, 'giocatore', 'giocatori') + ' · presenze attese ' + E1.ex.toFixed(1) + ' · puntualità ' + Math.round(E1.pu * 100) + '%</div></div>';
+  }
+  function plotCard(M, s, title, idx) {
+    var E = s.E, pr = Math.round(E.p * 100);
+    return '<div class="plcard' + (idx < 0 ? ' cur' : '') + '"><h5><span>' + title + '</span><span class="pct">' + pr + '% – ' + (100 - pr) + '%</span><span class="meta">a ranghi completi ' + Math.round(E.pFull * 100) + '% – ' + (100 - Math.round(E.pFull * 100)) + '%' + (s.moves != null ? ' · ' + plural(s.moves, 'spostamento', 'spostamenti') + ' rispetto ad ora' : '') + '</span></h5>' +
+      '<div class="plbar"><i class="r" style="width:' + pr + '%"></i><i class="b" style="width:' + (100 - pr) + '%"></i></div>' +
+      '<div class="plteams">' + plotTeamHtml(M, s.t1, true, { ex: E.ex1, pu: E.pu1 }) + plotTeamHtml(M, s.t2, false, { ex: E.ex2, pu: E.pu2 }) + '</div>' +
+      (idx >= 0 ? '<div style="margin-top:10px"><button type="button" class="btn ghost sm" data-plot="apply" data-i="' + idx + '">Usa queste squadre</button></div>' : '') + '</div>';
+  }
+  function renderPlot() {
+    var M = plotModel();
+    $('#plotnote').innerHTML = 'Il Plotonometro usa le battaglie in archivio dal <b>' + dmy(RULES_SINCE) + '</b> (divieto di AWP, SCAR-20 e G3SG1): ora sono <b>' + M.docs.length + '</b>. Ogni serata che salvi entra nel calcolo. Conta soprattutto avere lo stesso numero di giocatori: un giocatore in più vale molto più della bravura.';
+    var who = plotPlayers();
+    $('#plotwho').innerHTML = who.map(function (p) {
+      var on = p.bench ? PL.off[p.k] === false : !PL.off[p.k], a = M.by[p.k];
+      return '<label class="plchk' + (on ? '' : ' off') + '"><input type="checkbox" data-plk="' + esc(p.k) + '"' + (on ? ' checked' : '') + '> ' + esc(p.n) + (p.bench ? ' <span class="meta">panchina</span>' : '') + (a && a.voto != null ? ' <span class="meta">' + a.voto + '</span>' : '') + '</label>';
+    }).join('');
+    Array.prototype.forEach.call(document.querySelectorAll('[data-pw]'), function (s) { s.value = PL.w[s.dataset.pw]; s.nextElementSibling.textContent = s.value; });
+    var R = PL.res, box = $('#plotres');
+    if (!R) box.innerHTML = '<p class="note">Spunta chi gioca, regola i pesi e premi “Calcola squadre”.</p>';
+    else if (R.err) box.innerHTML = '<p class="note">' + esc(R.err) + '</p>';
+    else box.innerHTML = '<div class="plres">' + (R.cur ? plotCard(R.M, R.cur, 'Squadre attuali', -1) : '') + R.top.map(function (s, i) { return plotCard(R.M, s, 'Proposta ' + (i + 1), i); }).join('') + '</div><p class="note" style="margin-top:8px">Combinazioni provate: ' + R.n + '. La percentuale tiene conto di quanto spesso ognuno è presente.</p>';
+    var rows = M.list.slice().sort(function (a, b) { return (b.forza == null ? -999 : b.forza) - (a.forza == null ? -999 : a.forza); });
+    $('#plotvoti').innerHTML = rows.length ? '<table class="stab"><thead><tr><th class="l">Giocatore</th><th>Serate</th><th>Forza</th><th>Kill–morti per mappa</th><th>Presenze</th><th>Puntuale</th><th>HS %</th><th class="l">Stile</th></tr></thead><tbody>' +
+      rows.map(function (a) { return '<tr><td class="l"><span style="display:inline-flex;align-items:center;gap:8px;font-weight:600">' + avHtml(a.k, a.n, 'sqn') + esc(a.n) + '</span></td><td>' + a.ev + '</td><td><b>' + (a.voto == null ? '–' : a.voto) + '</b></td><td>' + (a.forza == null ? '–' : a.forza.toFixed(1)) + '</td><td>' + Math.round(a.pres * 100) + '%</td><td>' + Math.round(a.punt * 100) + '%</td><td>' + Math.round(a.hs * 100) + '%</td><td class="l">' + a.stile + '</td></tr>'; }).join('') + '</tbody></table>' +
+      '<p class="note" style="margin-top:8px">Forza: 0 = il più basso del gruppo, 100 = il più alto, con più peso alle serate recenti. Con meno di 2 serate il voto è provvisorio.</p>' : '<div class="empty">Nessuna battaglia dal ' + dmy(RULES_SINCE) + ' in archivio.</div>';
+  }
+  document.addEventListener('change', function (e) {
+    var c = e.target.closest && e.target.closest('[data-plk]');
+    if (c) { var k = c.dataset.plk, isB = plotPlayers().some(function (p) { return p.k === k && p.bench; }); if (isB) PL.off[k] = c.checked ? false : undefined; else PL.off[k] = !c.checked; PL.res = null; renderPlot(); }
+  });
+  document.addEventListener('input', function (e) {
+    var s = e.target.closest && e.target.closest('[data-pw]');
+    if (s) { PL.w[s.dataset.pw] = +s.value; s.nextElementSibling.textContent = s.value; }
+  });
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-plot]'); if (!b) return;
+    if (b.dataset.plot === 'run') { plotRun(); renderPlot(); }
+    else if (b.dataset.plot === 'apply' && PL.res && PL.res.top) {
+      var s = PL.res.top[+b.dataset.i], nm = function (k) { var p = plotPlayers().filter(function (q) { return q.k === k; })[0]; return p ? p.n : k; };
+      var used = {}; s.t1.concat(s.t2).forEach(function (k) { used[k] = 1; });
+      var others = plotPlayers().filter(function (p) { return !used[p.k] && !p.bench; }).map(function (p) { return { k: p.k, n: p.n }; });
+      F.red = s.t1.map(function (k) { return { k: k, n: nm(k) }; }); F.blue = s.t2.map(function (k) { return { k: k, n: nm(k) }; });
+      F.bench = resolveList(F.bench).filter(function (p) { return !used[p.k]; }).concat(others);
+      $('#fzmsg').textContent = 'Squadre del Plotonometro applicate: controlla e premi “Salva squadre”.';
+      PL.res = null; renderFaz(); window.scrollTo({ top: $('#fzA').getBoundingClientRect().top + window.scrollY - 80, behavior: 'smooth' });
+    }
+  });
 
   function facesChanged() {
     if (S.r) { renderTable(); renderAwards(); }
