@@ -1180,11 +1180,15 @@ try {
   function applySwap() { document.documentElement.setAttribute('data-swap', S.swap ? '1' : '0'); }
   /* ---------- volti ---------- */
   var FACES = {};
+  /* account cambiati: il vecchio SteamID vale come il nuovo */
+  var ALIAS = { 'STEAM_1:0:148491467': 'STEAM_1:0:367528023' };
+  var ALIAS_REV = {}; Object.keys(ALIAS).forEach(function (k) { ALIAS_REV[ALIAS[k]] = k; });
+  function canon(k) { return ALIAS[k] || k; }
   function fid(key) { return String(key).replace(/[^A-Za-z0-9]/g, '_').slice(0, 80); }
   function initial(n) { var m = String(n || '?').match(/[A-Za-z0-9À-ÿ]/); return (m ? m[0] : '?').toUpperCase(); }
   function avHtml(key, name, cls, o) {
     o = o || {};
-    var img = FACES[key], tag = o.click ? 'button' : 'span';
+    var img = FACES[key] || FACES[ALIAS_REV[key]] || FACES[ALIAS[key]], tag = o.click ? 'button' : 'span';
     return '<' + tag + (o.click ? ' type="button" data-face="' + esc(key) + '" data-fname="' + esc(name) + '" title="' + (img ? 'Cambia la foto di ' : 'Aggiungi la foto di ') + esc(name) + '"' : '') + ' class="av ' + (cls || '') + (o.big ? ' big' : '') + '">' +
       (img ? '<img src="' + esc(img) + '" alt="">' : '<span aria-hidden="true">' + esc(initial(name)) + '</span>') + '</' + tag + '>';
   }
@@ -1888,6 +1892,7 @@ try {
   var KNOWN = { 'innominato94': 'STEAM_1:0:367528023', 'innominato_94': 'STEAM_1:0:367528023', '[lw]ilcarnefice': 'STEAM_1:0:32180600', 'jackbeauregard': 'STEAM_1:0:28217336' };
   function nameKey(n) { return KNOWN[String(n).toLowerCase()] || 'name:' + n; }
   function resolveKey(k, n) {
+    if (ALIAS[k]) return ALIAS[k];
     if (String(k).indexOf('name:') !== 0) return k;
     var nm = String(n || k.slice(5)).toLowerCase();
     if (KNOWN[nm]) return KNOWN[nm];
@@ -1900,6 +1905,7 @@ try {
     Object.keys(pool).forEach(function (k) { byName[String(pool[k]).toLowerCase()] = k; });
     var seen = {};
     return list.map(function (p) {
+      if (ALIAS[p.k]) return { k: ALIAS[p.k], n: p.n };
       if (String(p.k).indexOf('name:') === 0) { var nm = String(p.n).toLowerCase(); if (KNOWN[nm]) return { k: KNOWN[nm], n: p.n }; if (byName[nm]) return { k: byName[nm], n: p.n }; }
       return p;
     }).filter(function (p) { if (seen[p.k]) return false; seen[p.k] = 1; return true; });
