@@ -324,6 +324,7 @@ tr.picked td { background: var(--bg); }
       <small>oppure trascina qui il file della serata</small>
       <span id="msg" role="status"></span>
     </div>
+    <button type="button" class="btn ghost sm" id="auth" hidden></button>
     <button type="button" class="bulb" id="theme" aria-pressed="false" title="Cambia tema chiaro / scuro" aria-label="Cambia tema chiaro o scuro">
       <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path class="glass" d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.3 1.1 2.2h5c0-.9.4-1.6 1.1-2.2A6 6 0 0 0 12 3z"/></svg>
     </button>
@@ -402,6 +403,86 @@ tr.picked td { background: var(--bg); }
   </div>
 </div>
 
+<script>window.LBG_CONFIG={"apiKey": "AIzaSyCj_-_F7m51QSNNxOHJ-Mm6NjVeiqFUOJ8", "authDomain": "loneburdegazz2.firebaseapp.com", "projectId": "loneburdegazz2", "storageBucket": "loneburdegazz2.firebasestorage.app", "messagingSenderId": "24116134527", "appId": "1:24116134527:web:abbeebf96de0a4d99d754a"};window.LBG_FB={ready:new Promise(function(r,j){window.__fbRes=r;window.__fbRej=j;})};</script>
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
+import { getFirestore, collection, query, orderBy, limit, onSnapshot, getDocs, doc, getDoc, setDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
+
+try {
+  var app = initializeApp(window.LBG_CONFIG);
+  var fs = getFirestore(app);
+  var auth = getAuth(app);
+
+  /* i documenti dell'archivio hanno liste dentro liste, che Firestore non accetta: si salvano come testo JSON */
+  var errOf = function (e) {
+    var c = e && e.code;
+    return { code: c === 'permission-denied' ? 'invalid_argument' : c === 'resource-exhausted' ? 'quota_exceeded' : (c || 'err') };
+  };
+  var wrap = function (p) { return p.catch(function (e) { throw errOf(e); }); };
+  var snapDoc = function (id, data) {
+    return { id: id, exists: !!data, data: function () { return data ? JSON.parse(data._j) : undefined; } };
+  };
+  var snapAll = function (s) {
+    var docs = s.docs.map(function (d) { return snapDoc(d.id, d.data()); });
+    return { docs: docs, size: docs.length, empty: !docs.length };
+  };
+  var packDoc = function (d) { var o = { _j: JSON.stringify(d) }; if (typeof d.ts === 'number') o.ts = d.ts; return o; };
+  var docref = function (path) {
+    var r = doc(fs, path);
+    return {
+      get: function () { return wrap(getDoc(r)).then(function (s) { return snapDoc(s.id, s.exists() ? s.data() : null); }); },
+      set: function (d) { return wrap(setDoc(r, packDoc(d))); },
+      delete: function () { return wrap(deleteDoc(r)); }
+    };
+  };
+  var col = function (name) {
+    var q = { ob: null, dir: 'asc', lim: 1000 };
+    var build = function () {
+      var c = [];
+      if (q.ob) c.push(orderBy(q.ob, q.dir));
+      c.push(limit(q.lim));
+      return query.apply(null, [collection(fs, name)].concat(c));
+    };
+    var api = {
+      orderBy: function (f, d) { q.ob = f; q.dir = d || 'asc'; return api; },
+      limit: function (n) { q.lim = n; return api; },
+      doc: function (id) { return docref(name + '/' + id); },
+      get: function () { return wrap(getDocs(build())).then(snapAll); },
+      onSnapshot: function (next, errcb) {
+        return onSnapshot(build(), function (s) { next(snapAll(s)); }, function (e) { if (errcb) errcb(errOf(e)); });
+      }
+    };
+    return api;
+  };
+  var user = {
+    canEdit: function () { return Promise.resolve(!!auth.currentUser); },
+    isOwner: function () { return Promise.resolve(false); },
+    can: function () { return Promise.resolve(auth.currentUser ? null : false); }
+  };
+
+  /* pulsante di accesso */
+  var btn = document.getElementById('auth');
+  var paint = function () {
+    if (!btn) return;
+    btn.hidden = false;
+    var u = auth.currentUser;
+    btn.textContent = u ? 'Esci (' + (u.email || 'account') + ')' : 'Accedi con Google';
+    btn.title = u ? 'Esci da questo account' : 'Serve per salvare ed eliminare battaglie';
+  };
+  if (btn) btn.addEventListener('click', function () {
+    if (auth.currentUser) signOut(auth);
+    else signInWithPopup(auth, new GoogleAuthProvider()).catch(function () {
+      var m = document.getElementById('msg'); if (m) m.textContent = 'Accesso non riuscito. Riprova.';
+    });
+  });
+  onAuthStateChanged(auth, function (u) { paint(); if (window.__lbgAuth) window.__lbgAuth(!!u); });
+
+  var ready = auth.authStateReady ? auth.authStateReady() : Promise.resolve();
+  ready.then(function () { paint(); window.__fbRes({ db: { collection: col, doc: docref }, user: user }); }, window.__fbRej);
+} catch (e) { window.__fbRej(e); }
+
+</script>
 <script>
 /* Lettore log CS:GO (Source engine). Nessuna dipendenza.
    Browser: window.CSGOLog   Node: module.exports */
@@ -1616,16 +1697,25 @@ tr.picked td { background: var(--bg); }
   $('#facefile').addEventListener('change', function (e) { var k = faceFor; faceFor = null; pickFace(e.target.files, k); e.target.value = ''; });
   $('#facesfile').addEventListener('change', function (e) { pickFaces(e.target.files); e.target.value = ''; });
 
+  window.__lbgAuth = function (signedIn) {
+    A.canWrite = signedIn ? null : false;
+    if (signedIn) A.msg = A.msg === 'Non hai il permesso di salvare.' ? '' : A.msg;
+    try { renderArchive(); renderSave(); } catch (e) {}
+  };
   async function initArchive() {
     var db = null, user = null;
     A.diag = '';
-    if (!(window.claude && window.claude.use)) A.diag = 'la pagina non è collegata al visualizzatore (runtime assente)';
+    if (window.LBG_FB) {
+      try { var fb = await window.LBG_FB.ready; db = fb.db; user = fb.user; }
+      catch (e) { db = null; A.diag = 'database online non raggiungibile: ' + ((e && (e.code || e.message)) || 'errore'); }
+    }
+    else if (!(window.claude && window.claude.use)) A.diag = 'la pagina non è collegata al visualizzatore (runtime assente)';
     else {
       try { db = await window.claude.use('db'); if (!db) A.diag = 'il visualizzatore non ha concesso il database a questa pagina'; }
       catch (e) { db = null; A.diag = 'errore del database: ' + ((e && (e.code || e.message)) || 'sconosciuto'); }
       try { user = await window.claude.use('user'); } catch (e) { user = null; }
     }
-    A.mode = 'shared';
+    A.mode = window.LBG_FB && db ? 'online' : 'shared';
     if (!db) {
       /* database condiviso assente: archivio sul dispositivo (IndexedDB) */
       try { db = localDb(await openLocal()); A.mode = 'local'; user = null; }
