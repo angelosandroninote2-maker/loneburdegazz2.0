@@ -347,6 +347,24 @@ table.ptab td.pn { color: #eceef0; }
 table.ptab td.dt { text-align: left; font-weight: 600; }
 table.ptab td.pts { font-weight: 700; }
 table.ptab tr.ptot td { font-weight: 700; background: var(--surface); }
+.sh3 { font-family: var(--f-display); font-weight: 800; font-size: 22px; text-transform: uppercase; margin: 26px 0 10px; }
+.sboard { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.stile { border: 1px solid var(--line); background: var(--surface); padding: 14px 18px; border-top: 6px solid var(--ros); }
+.stile.b { border-top-color: var(--blu); }
+.stile.lead { box-shadow: inset 0 -4px 0 var(--ink); border-color: var(--ink); border-top-color: var(--ros); }
+.stile.b.lead { border-top-color: var(--blu); }
+.stile .nm { font-weight: 700; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+.stile .big { font-family: var(--f-display); font-weight: 900; font-size: 64px; line-height: 1; margin-top: 6px; }
+.stile .big small { font-family: var(--f-body); font-size: 15px; font-weight: 500; color: var(--muted); }
+.stile .sub { font-size: 13px; color: var(--ink2); margin-top: 4px; }
+.slead { margin-top: 10px; font-weight: 700; }
+table.stab { border-collapse: collapse; font-size: 14px; min-width: 100%; }
+table.stab th, table.stab td { border-bottom: 1px solid var(--line); padding: 7px 10px; text-align: right; white-space: nowrap; }
+table.stab th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+table.stab th:first-child, table.stab td:first-child, table.stab td.l, table.stab th.l { text-align: left; }
+table.stab tr.tot td { font-weight: 800; border-top: 2px solid var(--ink); }
+table.ptab tr.psep td { background: var(--ink); color: var(--bg); text-align: left; font-weight: 800; font-family: var(--f-display); text-transform: uppercase; font-size: 15px; letter-spacing: .03em; }
+@media (max-width: 760px) { .sboard { grid-template-columns: 1fr; } }
 @media (max-width: 900px) {
   .vstrip, .cols { grid-template-columns: minmax(0, 1fr); }
   .maplist { flex-direction: row; overflow-x: auto; padding-bottom: 6px; scroll-snap-type: x proximity; }
@@ -394,6 +412,7 @@ table.ptab tr.ptot td { font-weight: 700; background: var(--surface); }
   <nav class="tabs" aria-label="Sezioni">
     <button type="button" data-view="archivio">Elenco battaglie <span class="cnt" id="cnt"></span></button>
     <button type="button" data-view="classifica">Classifica generale</button>
+    <button type="button" data-view="stagione">Stagione</button>
     <button type="button" data-view="fazioni">Fazioni</button>
     <button type="button" data-view="presenze">Presenze</button>
   </nav>
@@ -408,6 +427,7 @@ table.ptab tr.ptot td { font-weight: 700; background: var(--surface); }
   <div class="view" id="v-classifica" hidden>
     <section class="sec">
       <header><h2>Classifica generale</h2><p id="ranknote"></p></header>
+      <div class="fzctl"><label>Mostra <select id="rsel"><option value="cur">Stagione in corso</option><option value="all">Tutte le stagioni</option></select></label></div>
       <div id="rank"></div>
     </section>
   </div>
@@ -432,6 +452,26 @@ table.ptab tr.ptot td { font-weight: 700; background: var(--surface); }
         <button type="button" class="btn go" data-fz="png">Scarica immagine</button>
         <button type="button" class="btn ghost" data-fz="share" id="fzshare" hidden>Condividi</button>
       </div>
+    </section>
+  </div>
+
+  <div class="view" id="v-stagione" hidden>
+    <section class="sec">
+      <header><h2 id="stitle">Stagione</h2><p id="snote"></p></header>
+      <div class="fzctl">
+        <label>Stagione <select id="ssel"></select></label>
+        <label>Nome <input type="text" id="sname" maxlength="40"></label>
+        <button type="button" class="btn ghost sm" data-st="name">Salva nome</button>
+        <button type="button" class="btn sm" data-st="close" id="sclose">Chiudi stagione e inizia la nuova</button>
+        <span class="note" id="smsg" role="status"></span>
+      </div>
+      <div id="sboard"></div>
+      <h3 class="sh3">Serate della stagione</h3>
+      <div class="tablewrap" id="sev"></div>
+      <h3 class="sh3">Giocatori della stagione</h3>
+      <div class="tablewrap" id="spl"></div>
+      <h3 class="sh3">Albo delle stagioni</h3>
+      <div id="salbo"></div>
     </section>
   </div>
 
@@ -1460,14 +1500,15 @@ try {
 
   function setView(v) {
     document.body.classList.toggle('indetail', v === 'serata');
-    if (['serata', 'archivio', 'classifica', 'fazioni', 'presenze'].indexOf(v) < 0) v = 'archivio';
+    if (['serata', 'archivio', 'classifica', 'fazioni', 'presenze', 'stagione'].indexOf(v) < 0) v = 'archivio';
     S.view = v;
-    ['serata', 'archivio', 'classifica', 'fazioni', 'presenze'].forEach(function (x) { $('#v-' + x).hidden = x !== v; });
+    ['serata', 'archivio', 'classifica', 'fazioni', 'presenze', 'stagione'].forEach(function (x) { $('#v-' + x).hidden = x !== v; });
     Array.prototype.forEach.call(document.querySelectorAll('.tabs button'), function (a) {
       if (a.dataset.view === v || (v === 'serata' && a.dataset.view === 'archivio')) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     });
     if (v === 'fazioni') { try { renderFaz(); } catch (e) {} }
     if (v === 'presenze') { try { renderPres(); } catch (e) {} }
+    if (v === 'stagione') { try { SEAS.confirm = false; renderStag(); } catch (e) {} }
     if (location.hash !== '#' + v) { try { location.hash = v; } catch (e) {} }
   }
   window.addEventListener('hashchange', function () { var v = (location.hash || '').slice(1); if (v !== S.view) setView(v); });
@@ -1554,8 +1595,10 @@ try {
       box.innerHTML = '<div class="empty">' + (A.ok && A.ready && !A.err ? '<b>La classifica compare dopo la prima battaglia salvata.</b> Somma le statistiche di tutte le serate in archivio.' : 'La classifica usa le battaglie dell’archivio, che ora non è disponibile.') + '</div>';
       return;
     }
-    var by = {};
-    A.docs.slice().sort(function (a, b) { return a.ts - b.ts; }).forEach(function (d) {
+    var by = {}, rs = $('#rsel') ? $('#rsel').value : 'all', rdocs = A.docs.slice();
+    if (rs === 'cur') { var cs = curSeason(); rdocs = seasonDocs(cs); note.textContent = cs.label + ' · ' + plural(rdocs.length, 'serata', 'serate'); }
+    if (!rdocs.length) { box.innerHTML = '<div class="empty">Nessuna serata in questa stagione. Scegli “Tutte le stagioni”.</div>'; return; }
+    rdocs.sort(function (a, b) { return a.ts - b.ts; }).forEach(function (d) {
       (d.players || []).forEach(function (p) {
         var a = by[p.k] || (by[p.k] = { key: p.k, name: p.n, ev: 0, evw: 0, maps: 0, mw: 0, kills: 0, deaths: 0, assists: 0, hs: 0 });
         a.name = p.n; a.ev++; if (p.ev === 1) a.evw++;
@@ -1925,6 +1968,10 @@ try {
     for (var gy = 0; gy < H; gy += 40) { x.beginPath(); x.moveTo(0, gy + .5); x.lineTo(W, gy + .5); x.stroke(); }
     x.textAlign = 'center'; x.textBaseline = 'alphabetic';
     var clan = (F.clan || '').trim();
+    try {
+      var fs2 = seasonOf(F.date);
+      if (fs2) { var wk = Math.floor(isoDiff(F.date, fs2.start) / 7) + 1; clan = (clan ? clan + '  ·  ' : '') + fs2.label + '  ·  serata ' + wk + (fs2.auto ? ' di 8' : ''); }
+    } catch (e) {}
     if (clan) { x.fillStyle = '#b3bac1'; x.font = '700 28px ' + BODY; x.fillText(clan.toUpperCase().split('').join(String.fromCharCode(8202)), W / 2, 58); }
     x.fillStyle = '#f0a830'; x.font = '900 84px ' + DISP;
     x.fillText('FAZIONI  ' + dmy(F.date), W / 2, clan ? 138 : 120);
@@ -2048,17 +2095,19 @@ try {
     if (!M.rows.length) { box.innerHTML = '<div class="empty">Le presenze compaiono dopo la prima battaglia salvata.</div>'; return; }
     var canW = A.ok && A.canWrite !== false;
     var head = '<thead><tr><th>N°</th><th>Data</th>' + M.keys.map(function (k) { return '<th class="pn2"' + (M.bench[k] ? ' title="In panchina" style="color:var(--muted)"' : '') + '>' + esc(M.names[k]) + '</th>'; }).join('') +
-      '<th>Parz.<br>Rossa</th><th>Parz.<br>Blu</th><th>Totale<br>Rossa</th><th>Totale<br>Blu</th></tr></thead>';
+      '</tr></thead>';
     var cnt = {}; M.keys.forEach(function (k) { cnt[k] = { v: 0, g: 0, a: 0, r: 0, n: 0 }; });
+    var L2 = seasons(), lastS = null, ncol = 2 + M.keys.length;
     var body = M.rows.map(function (r) {
-      return '<tr><td>' + r.n + '</td><td class="dt">' + dmy(r.d.date) + '</td>' + r.cells.map(function (c) {
+      var s = seasonOf(r.d.date, L2), sep = '';
+      if (s !== lastS) { sep = '<tr class="psep"><td colspan="' + ncol + '">' + (s ? esc(s.label) + ' · dal ' + dmy(s.start) : 'Fuori stagione') + '</td></tr>'; lastS = s; }
+      return sep + '<tr><td>' + r.n + '</td><td class="dt">' + dmy(r.d.date) + '</td>' + r.cells.map(function (c) {
         var cc = c.c === '?' ? 'v' : c.c; if (cnt[c.k][cc] != null) cnt[c.k][cc]++;
         var cls = c.c === '?' ? 'pv' : 'p' + c.c;
         return '<td class="pcell ' + cls + (canW ? ' edit' : '') + (c.ov ? ' ov' : '') + '" data-pid="' + esc(r.d.id) + '" data-pk="' + esc(c.k) + '" title="' + esc(M.names[c.k] + ' · ' + (PCOL[c.c] || 'Presente (orario non disponibile)') + (c.t ? ' · entrato alle ' + c.t : '') + (c.ov ? ' · corretto a mano' : '') + (canW ? ' · clic per cambiare' : '')) + '">' + esc(c.t) + '</td>';
-      }).join('') +
-        '<td class="pts">' + r.pr + '</td><td class="pts">' + r.pb + '</td><td class="pts">' + r.tr + '</td><td class="pts">' + r.tb + '</td></tr>';
+      }).join('') + '</tr>';
     }).join('');
-    var tot = '<tr class="ptot"><td></td><td class="dt">Verdi / gialli / arancioni / rossi</td>' + M.keys.map(function (k) { var c = cnt[k]; return '<td title="' + esc(M.names[k]) + '">' + c.v + '/' + c.g + '/' + c.a + '/' + c.r + '</td>'; }).join('') + '<td colspan="4"></td></tr>';
+    var tot = '<tr class="ptot"><td></td><td class="dt">Verdi / gialli / arancioni / rossi</td>' + M.keys.map(function (k) { var c = cnt[k]; return '<td title="' + esc(M.names[k]) + '">' + c.v + '/' + c.g + '/' + c.a + '/' + c.r + '</td>'; }).join('') + '</tr>';
     box.innerHTML = '<table class="ptab">' + head + '<tbody>' + body + tot + '</tbody></table>';
     $('#presmsg').textContent = canW ? 'Clic su una casella per correggerla a mano (verde → giallo → arancione → rosso → nero → automatico).' : '';
   }
@@ -2105,18 +2154,30 @@ try {
     var rows = [], R = 1;
     rows.push('<row r="1">' + cell(1, 1, 'Plotone Lonewolf · Presenze', 1) + '</row>');
     rows.push('<row r="2">' + cell(2, 1, 'Verde: presente entro le 22:15 · Giallo: dopo le 22:15 · Arancione: dopo le 22:30 · Rosso: non ha giocato entro le 00:10 · Nero: panchina', 0) + '</row>');
-    var hdr = ['N°', 'Data'].concat(M.keys.map(function (k) { return M.names[k]; }), ['Parz. Rossa', 'Parz. Blu', 'Totale Rossa', 'Totale Blu']);
+    var hdr = ['N°', 'Data'].concat(M.keys.map(function (k) { return M.names[k]; }));
     rows.push('<row r="4">' + hdr.map(function (h, i) { return cell(4, i, h, 7); }).join('') + '</row>');
     R = 5;
+    var L2 = seasons(), lastS = null;
     M.rows.forEach(function (r) {
+      var sS = seasonOf(r.d.date, L2);
+      if (sS !== lastS) { rows.push('<row r="' + R + '">' + cell(R, 0, sS ? sS.label + ' · dal ' + dmy(sS.start) : 'Fuori stagione', 1) + '</row>'); R++; lastS = sS; }
       var cs = [cell(R, 0, r.n, 8), cell(R, 1, dmy(r.d.date), 8)];
       r.cells.forEach(function (c, i) { cs.push(cell(R, 2 + i, c.t, ST[c.c] || 2)); });
-      var o = 2 + M.keys.length;
-      [r.pr, r.pb, r.tr, r.tb].forEach(function (v, i) { cs.push(cell(R, o + i, v, 8)); });
       rows.push('<row r="' + R + '">' + cs.join('') + '</row>'); R++;
     });
     var ncol = hdr.length;
-    var cols = '<cols><col min="1" max="1" width="5" customWidth="1"/><col min="2" max="2" width="11" customWidth="1"/><col min="3" max="' + (ncol - 4) + '" width="13" customWidth="1"/><col min="' + (ncol - 3) + '" max="' + ncol + '" width="12" customWidth="1"/></cols>';
+    var cols = '<cols><col min="1" max="1" width="5" customWidth="1"/><col min="2" max="2" width="11" customWidth="1"/><col min="3" max="' + ncol + '" width="13" customWidth="1"/></cols>';
+    /* secondo foglio: stagioni */
+    var s2 = [], R2 = 1;
+    s2.push('<row r="1">' + cell(1, 0, 'Plotone Lonewolf · Stagioni (si vince con il totale delle mappe vinte)', 1) + '</row>'); R2 = 3;
+    var h2 = ['Stagione', 'N°', 'Data', 'Lunedì', 'Mappe Rossa', 'Mappe Blu', 'Totale Rossa', 'Totale Blu', 'Serata vinta da'];
+    s2.push('<row r="3">' + h2.map(function (h, i) { return cell(3, i, h, 7); }).join('') + '</row>'); R2 = 4;
+    L2.forEach(function (sx) {
+      var T = seasonTotals(sx); if (!T.rows.length) return;
+      T.rows.forEach(function (x, i) { s2.push('<row r="' + R2 + '">' + [cell(R2, 0, sx.label, 8), cell(R2, 1, i + 1, 8), cell(R2, 2, dmy(x.d.date), 8), cell(R2, 3, x.wk, 8), cell(R2, 4, x.r, 8), cell(R2, 5, x.b, 8), cell(R2, 6, x.tr, 8), cell(R2, 7, x.tb, 8), cell(R2, 8, x.w ? (x.w === 'r' ? 'Rossa' : 'Blu') : 'Pari', 8)].join('') + '</row>'); R2++; });
+      s2.push('<row r="' + R2 + '">' + [cell(R2, 0, sx.label + ' · totale', 7), cell(R2, 6, T.r, 7), cell(R2, 7, T.b, 7), cell(R2, 8, T.lead ? 'Vince ' + (T.lead === 'r' ? 'Rossa' : 'Blu') : 'Pari', 7)].join('') + '</row>'); R2 += 2;
+    });
+    var sheet2 = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cols><col min="1" max="1" width="24" customWidth="1"/><col min="2" max="9" width="14" customWidth="1"/></cols><sheetData>' + s2.join('') + '</sheetData></worksheet>';
     var sheet = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane xSplit="2" ySplit="4" topLeftCell="C5" activePane="bottomRight" state="frozen"/></sheetView></sheetViews>' + cols + '<sheetData>' + rows.join('') + '</sheetData></worksheet>';
     var fill = function (rgb) { return '<fill><patternFill patternType="solid"><fgColor rgb="FF' + rgb + '"/><bgColor indexed="64"/></patternFill></fill>'; };
     var bd = '<border><left style="thin"><color rgb="FFB0B7BE"/></left><right style="thin"><color rgb="FFB0B7BE"/></right><top style="thin"><color rgb="FFB0B7BE"/></top><bottom style="thin"><color rgb="FFB0B7BE"/></bottom><diagonal/></border>';
@@ -2128,18 +2189,130 @@ try {
       '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
       '<cellXfs count="9"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" applyFont="1"/>' + xf(3, 2, 1) + xf(3, 3, 1) + xf(3, 4, 1) + xf(3, 5, 1) + xf(2, 6, 1) + xf(3, 7, 1) + xf(0, 0, 1) + '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
     var files = [
-      { name: '[Content_Types].xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>' },
+      { name: '[Content_Types].xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>' },
       { name: '_rels/.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
-      { name: 'xl/workbook.xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Presenze" sheetId="1" r:id="rId1"/></sheets></workbook>' },
-      { name: 'xl/_rels/workbook.xml.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>' },
+      { name: 'xl/workbook.xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Presenze" sheetId="1" r:id="rId1"/><sheet name="Stagioni" sheetId="2" r:id="rId3"/></sheets></workbook>' },
+      { name: 'xl/_rels/workbook.xml.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/></Relationships>' },
       { name: 'xl/styles.xml', data: styles },
-      { name: 'xl/worksheets/sheet1.xml', data: sheet }
+      { name: 'xl/worksheets/sheet1.xml', data: sheet },
+      { name: 'xl/worksheets/sheet2.xml', data: sheet2 }
     ];
     var blob = zip(files), url = URL.createObjectURL(blob), an = document.createElement('a');
     an.href = url; an.download = 'presenze-lonewolf.xlsx'; document.body.appendChild(an); an.click();
     setTimeout(function () { URL.revokeObjectURL(url); an.remove(); }, 1500);
     $('#presmsg').textContent = 'File Excel pronto.';
   }
+
+  /* ---------- stagioni ---------- */
+  var SEAS = { cfg: null, sel: null, confirm: false };
+  var SEASON_DAYS = 56, SEASON_START = '2026-10-05';
+  function isoAdd(iso, n) { var p = iso.split('-'); return new Date(Date.UTC(+p[0], +p[1] - 1, +p[2] + n)).toISOString().slice(0, 10); }
+  function isoDiff(a, b) { var x = a.split('-'), y = b.split('-'); return Math.round((Date.UTC(+x[0], +x[1] - 1, +x[2]) - Date.UTC(+y[0], +y[1] - 1, +y[2])) / 86400000); }
+  function todayIso() { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  function seasons() {
+    var src = SEAS.cfg && SEAS.cfg.list && SEAS.cfg.list.length ? SEAS.cfg.list : [{ start: SEASON_START, name: 'Stagione 1' }];
+    var list = src.map(function (s) { return { start: s.start, end: s.end || null, name: s.name || '' }; }).sort(function (a, b) { return a.start < b.start ? -1 : 1; });
+    list.forEach(function (s, i) {
+      var auto = isoAdd(s.start, SEASON_DAYS - 1), nx = list[i + 1];
+      s.endC = s.end || (nx && isoAdd(nx.start, -1) < auto ? isoAdd(nx.start, -1) : auto);
+      s.auto = !s.end;
+    });
+    var last = todayIso();
+    (A.docs || []).forEach(function (d) { if (d.date > last) last = d.date; });
+    while (list[list.length - 1].endC < last) {
+      var st = isoAdd(list[list.length - 1].endC, 1);
+      list.push({ start: st, end: null, name: '', endC: isoAdd(st, SEASON_DAYS - 1), auto: true, virt: true });
+    }
+    list.forEach(function (s, i) { s.n = i + 1; s.label = s.name || ('Stagione ' + (i + 1)); });
+    return list;
+  }
+  function seasonOf(date, L2) { L2 = L2 || seasons(); for (var i = 0; i < L2.length; i++) if (date >= L2[i].start && date <= L2[i].endC) return L2[i]; return null; }
+  function curSeason(L2) { L2 = L2 || seasons(); return seasonOf(todayIso(), L2) || L2[L2.length - 1]; }
+  function seasonDocs(s) { return (A.docs || []).filter(function (d) { return s && d.date >= s.start && d.date <= s.endC; }).sort(function (a, b) { return a.ts - b.ts; }); }
+  function seasonTotals(s) {
+    var R = { r: 0, b: 0, kr: 0, kb: 0, er: 0, eb: 0, rows: [] };
+    seasonDocs(s).forEach(function (d) {
+      var ri = redIdxOf(d), r = d.wins ? d.wins[ri] : 0, b = d.wins ? d.wins[1 - ri] : 0;
+      R.r += r; R.b += b; R.kr += d.points ? d.points[ri] : 0; R.kb += d.points ? d.points[1 - ri] : 0;
+      var w = d.winner == null ? null : (d.winner === ri ? 'r' : 'b'); if (w === 'r') R.er++; else if (w === 'b') R.eb++;
+      R.rows.push({ d: d, wk: Math.floor(isoDiff(d.date, s.start) / 7) + 1, r: r, b: b, tr: R.r, tb: R.b, w: w });
+    });
+    R.lead = R.r > R.b ? 'r' : R.b > R.r ? 'b' : (R.kr > R.kb ? 'r' : R.kb > R.kr ? 'b' : null);
+    R.byPts = R.r === R.b;
+    return R;
+  }
+  function renderStag() {
+    var L2 = seasons(), cur = curSeason(L2);
+    var sel = $('#ssel');
+    if (!SEAS.sel || !L2.some(function (s) { return s.start === SEAS.sel; })) SEAS.sel = cur.start;
+    sel.innerHTML = L2.slice().reverse().map(function (s) { return '<option value="' + s.start + '"' + (s.start === SEAS.sel ? ' selected' : '') + '>' + esc(s.label) + (s === cur ? ' (in corso)' : '') + '</option>'; }).join('');
+    var s = L2.filter(function (x) { return x.start === SEAS.sel; })[0], T = seasonTotals(s), isCur = s === cur;
+    $('#stitle').textContent = s.label;
+    var played = T.rows.length;
+    $('#snote').textContent = 'Dal ' + dmy(s.start) + ' al ' + dmy(s.endC) + (s.auto ? ' (8 lunedì)' : ' (chiusa a mano)') + ' · ' + plural(played, 'serata giocata', 'serate giocate');
+    if (document.activeElement !== $('#sname')) $('#sname').value = s.label;
+    var canW = A.ok && A.canWrite !== false;
+    $('[data-st="name"]').disabled = !canW;
+    var cl = $('#sclose'); cl.hidden = !isCur; cl.disabled = !canW || !played;
+    cl.textContent = SEAS.confirm ? 'Sì, chiudi ' + s.label : 'Chiudi stagione e inizia la nuova';
+    cl.className = SEAS.confirm ? 'btn warn sm' : 'btn sm';
+    function tile(c) {
+      var red = c === 'r';
+      return '<div class="stile' + (red ? '' : ' b') + (T.lead === c ? ' lead' : '') + '"><div class="nm"><i class="sw ' + (red ? 'ros' : 'blu') + '"></i>Squadra ' + (red ? 'Rossa' : 'Blu') + '</div>' +
+        '<div class="big num">' + (red ? T.r : T.b) + ' <small>punti (mappe vinte)</small></div>' +
+        '<div class="sub">' + plural(red ? T.er : T.eb, 'serata vinta', 'serate vinte') + ' · ' + nf.format(red ? T.kr : T.kb) + ' kill di squadra</div></div>';
+    }
+    var leadTxt = !played ? 'Nessuna serata ancora in questa stagione.' : T.lead == null ? 'Squadre in parità.' :
+      (isCur ? 'In testa: ' : 'Vince la stagione: ') + 'Squadra ' + (T.lead === 'r' ? 'Rossa' : 'Blu') + (T.byPts ? ' (punti pari, decidono le kill di squadra)' : '');
+    $('#sboard').innerHTML = '<div class="sboard">' + tile('r') + tile('b') + '</div><p class="slead">' + leadTxt + (isCur && s.auto ? ' · Lunedì ' + Math.min(8, Math.floor(isoDiff(todayIso(), s.start) / 7) + 1) + ' di 8' : '') + '</p>';
+    $('#sev').innerHTML = played ? '<table class="stab"><thead><tr><th>N°</th><th class="l">Data</th><th>Lunedì</th><th>Mappe Rossa</th><th>Mappe Blu</th><th>Totale Rossa</th><th>Totale Blu</th><th class="l">Serata vinta da</th></tr></thead><tbody>' +
+      T.rows.map(function (x, i) { return '<tr><td>' + (i + 1) + '</td><td class="l">' + dmy(x.d.date) + '</td><td>' + x.wk + (s.auto ? ' / 8' : '') + '</td><td>' + x.r + '</td><td>' + x.b + '</td><td>' + x.tr + '</td><td>' + x.tb + '</td><td class="l">' + (x.w ? '<i class="sw ' + (x.w === 'r' ? 'ros' : 'blu') + '"></i> Squadra ' + (x.w === 'r' ? 'Rossa' : 'Blu') : 'Pari') + '</td></tr>'; }).join('') +
+      '<tr class="tot"><td></td><td class="l">Totale</td><td></td><td>' + T.r + '</td><td>' + T.b + '</td><td>' + T.r + '</td><td>' + T.b + '</td><td class="l">' + T.er + ' – ' + T.eb + ' serate</td></tr></tbody></table>' : '<div class="empty">Ancora nessuna serata.</div>';
+    var by = {};
+    seasonDocs(s).forEach(function (d) {
+      (d.players || []).forEach(function (p) {
+        var a = by[p.k] || (by[p.k] = { n: p.n, ev: 0, m: 0, mw: 0, K: 0, D: 0, H: 0, v: 0 });
+        a.n = p.n; a.ev++; a.m += p.m; a.mw += p.mw; a.K += p.K; a.D += p.D; a.H += p.H;
+        var e = d.pres && d.pres.p[p.k]; if (!e || e.c === 'v') a.v++;
+      });
+    });
+    var pl = Object.keys(by).map(function (k) { var a = by[k]; a.k = k; return a; }).sort(function (a, b) { return b.K - a.K; });
+    $('#spl').innerHTML = pl.length ? '<table class="stab"><thead><tr><th class="l">Giocatore</th><th>Serate</th><th>Puntuale</th><th>Mappe</th><th>Mappe vinte</th><th>Kill</th><th>Morti</th><th>K/D</th><th>HS %</th></tr></thead><tbody>' +
+      pl.map(function (a) { return '<tr><td class="l"><span style="display:inline-flex;align-items:center;gap:8px;font-weight:600">' + avHtml(a.k, a.n, 'sqn') + esc(a.n) + '</span></td><td>' + a.ev + '</td><td>' + a.v + '/' + a.ev + '</td><td>' + a.m + '</td><td>' + a.mw + '</td><td>' + a.K + '</td><td>' + a.D + '</td><td>' + kd(a.K, a.D).toFixed(2) + '</td><td>' + (a.K ? Math.round(a.H / a.K * 100) : 0) + '%</td></tr>'; }).join('') + '</tbody></table>' : '<div class="empty">Ancora nessun giocatore.</div>';
+    var past = L2.filter(function (x) { return x !== cur && seasonDocs(x).length; }).reverse();
+    $('#salbo').innerHTML = past.length ? '<table class="stab"><thead><tr><th class="l">Stagione</th><th class="l">Periodo</th><th>Serate</th><th>Rossa</th><th>Blu</th><th class="l">Vincitrice</th></tr></thead><tbody>' +
+      past.map(function (x) { var P = seasonTotals(x); return '<tr><td class="l"><b>' + esc(x.label) + '</b></td><td class="l">' + dmy(x.start) + ' – ' + dmy(x.endC) + '</td><td>' + P.rows.length + '</td><td>' + P.r + '</td><td>' + P.b + '</td><td class="l">' + (P.lead ? '<i class="sw ' + (P.lead === 'r' ? 'ros' : 'blu') + '"></i> Squadra ' + (P.lead === 'r' ? 'Rossa' : 'Blu') : 'Pari') + '</td></tr>'; }).join('') + '</tbody></table>' : '<p class="note">Le stagioni concluse compariranno qui.</p>';
+  }
+  async function saveSeasons(list) {
+    var data = { v: 1, list: list.map(function (s) { return { start: s.start, end: s.end || null, name: s.name || '' }; }) };
+    await A.db.doc('impostazioni/stagioni').set(data);
+    SEAS.cfg = data;
+  }
+  document.addEventListener('click', async function (e) {
+    var b = e.target.closest && e.target.closest('[data-st]'); if (!b) return;
+    var L2 = seasons(), cur = curSeason(L2), msg = $('#smsg');
+    if (!A.db) return;
+    try {
+      if (b.dataset.st === 'name') {
+        var s = L2.filter(function (x) { return x.start === SEAS.sel; })[0], nm = $('#sname').value.trim();
+        if (!s || !nm) return;
+        s.name = nm; await saveSeasons(L2.filter(function (x) { return !x.virt || x.n <= s.n; }).map(function (x) { if (x.virt) x.virt = false; return x; }));
+        msg.textContent = 'Nome salvato.'; renderStag();
+      } else if (b.dataset.st === 'close') {
+        if (!SEAS.confirm) { SEAS.confirm = true; renderStag(); return; }
+        SEAS.confirm = false;
+        var docs = seasonDocs(cur); if (!docs.length) { msg.textContent = 'In questa stagione non ci sono serate.'; renderStag(); return; }
+        var endD = docs[docs.length - 1].date;
+        var keep = L2.filter(function (x) { return x.n <= cur.n; }).map(function (x) { return { start: x.start, end: x === cur ? endD : (x.end || x.endC), name: x.label }; });
+        keep.push({ start: isoAdd(endD, 1), end: null, name: 'Stagione ' + (cur.n + 1) });
+        await saveSeasons(keep);
+        SEAS.sel = null; msg.textContent = cur.label + ' chiusa. Ora aggiorna le squadre nella pagina Fazioni.'; renderAll2();
+      }
+    } catch (er) { msg.textContent = er && er.code === 'invalid_argument' ? 'Non hai il permesso di modificare le stagioni.' : 'Operazione non riuscita.'; SEAS.confirm = false; renderStag(); }
+  });
+  function renderAll2() { try { renderStag(); renderPres(); renderRank(); if (S.view === 'fazioni') renderFaz(); } catch (e) {} }
+  $('#ssel').addEventListener('change', function (e) { SEAS.sel = e.target.value; SEAS.confirm = false; renderStag(); });
+  $('#rsel').addEventListener('change', function () { renderRank(); });
 
   function facesChanged() {
     if (S.r) { renderTable(); renderAwards(); }
@@ -2264,12 +2437,14 @@ try {
       renderArchive(); renderSave();
       if (S.view === 'fazioni') renderFaz();
       if (S.view === 'presenze') renderPres();
+      if (S.view === 'stagione') renderStag();
     }, function (err) {
       clearTimeout(timer);
       A.ready = true; A.err = (err && err.code) || 'err';
       renderArchive(); renderSave();
     });
     try {
+      db.doc('impostazioni/stagioni').get().then(function (s) { if (s.exists) SEAS.cfg = s.data(); renderAll2(); }, function () {});
       db.doc('impostazioni/fazioni').get().then(function (s) { if (s.exists) { F.saved = s.data(); F.init = false; } if (S.view === 'fazioni') renderFaz(); }, function () {});
     } catch (e) {}
     try {
