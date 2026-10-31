@@ -311,6 +311,23 @@ tr.picked td { background: var(--bg); }
 .cols .sec > header { margin-bottom: 8px; }
 .dhead h2 { font-size: 24px; }
 @media (min-width: 901px) { .tablewrap.scroll { max-height: calc(100vh - 150px); } }
+.fzctl { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-bottom: 16px; }
+.fzctl label { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink2); }
+.fzctl input { padding: 6px 9px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; }
+.fzgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.fzcol { border: 1px solid var(--line); background: var(--surface); padding: 12px 14px; min-width: 0; }
+.fzcol h3 { font-family: var(--f-display); font-weight: 800; font-size: 22px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.fzcol h3 small { font-family: var(--f-body); font-weight: 500; font-size: 13px; color: var(--muted); text-transform: none; }
+.fzlist { display: flex; flex-wrap: wrap; gap: 8px; }
+.fzchip { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line); background: var(--bg); padding: 4px 6px 4px 4px; font-weight: 600; font-size: 14px; }
+.fzchip button { border: 1px solid var(--line); background: var(--surface); color: var(--ink2); font-size: 12px; padding: 2px 6px; cursor: pointer; }
+.fzchip button:hover { border-color: var(--ink); color: var(--ink); }
+.fzrest { margin-top: 12px; }
+.fzrest h4 { font-size: 13px; color: var(--muted); font-weight: 600; margin-bottom: 8px; }
+.fzprev { margin-top: 18px; border: 1px solid var(--line); background: #0f1215; }
+.fzprev canvas { display: block; width: 100%; height: auto; }
+.av.fzr { border-color: var(--ros); } .av.fzb { border-color: var(--blu); }
+@media (max-width: 760px) { .fzgrid { grid-template-columns: 1fr; } }
 @media (max-width: 900px) {
   .vstrip, .cols { grid-template-columns: minmax(0, 1fr); }
   .maplist { flex-direction: row; overflow-x: auto; padding-bottom: 6px; scroll-snap-type: x proximity; }
@@ -358,6 +375,7 @@ tr.picked td { background: var(--bg); }
   <nav class="tabs" aria-label="Sezioni">
     <button type="button" data-view="archivio">Elenco battaglie <span class="cnt" id="cnt"></span></button>
     <button type="button" data-view="classifica">Classifica generale</button>
+    <button type="button" data-view="fazioni">Fazioni</button>
   </nav>
 
   <div class="view" id="v-archivio">
@@ -371,6 +389,27 @@ tr.picked td { background: var(--bg); }
     <section class="sec">
       <header><h2>Classifica generale</h2><p id="ranknote"></p></header>
       <div id="rank"></div>
+    </section>
+  </div>
+
+  <div class="view" id="v-fazioni" hidden>
+    <section class="sec">
+      <header><h2>Fazioni della prossima serata</h2><p id="faznote"></p></header>
+      <div class="fzctl">
+        <label>Data <input type="date" id="fzdate"></label>
+        <label>Testo in alto <input type="text" id="fzclan" maxlength="40"></label>
+        <button type="button" class="btn ghost sm" data-fz="flip">⇄ Inverti fazioni</button>
+        <button type="button" class="btn ghost sm" data-fz="reset">Squadre dall’ultima battaglia</button>
+        <button type="button" class="btn sm" data-fz="save">Salva squadre</button>
+        <span class="note" id="fzmsg" role="status"></span>
+      </div>
+      <div class="fzgrid"><div class="fzcol" id="fzA"></div><div class="fzcol" id="fzB"></div></div>
+      <div class="fzrest" id="fzrest"></div>
+      <div class="fzprev"><canvas id="fzcanvas" width="1600" height="900" aria-label="Anteprima dell’infografica delle fazioni"></canvas></div>
+      <div class="barrow" style="justify-content:flex-start">
+        <button type="button" class="btn go" data-fz="png">Scarica immagine</button>
+        <button type="button" class="btn ghost" data-fz="share" id="fzshare" hidden>Condividi</button>
+      </div>
     </section>
   </div>
 
@@ -1358,12 +1397,13 @@ try {
 
   function setView(v) {
     document.body.classList.toggle('indetail', v === 'serata');
-    if (['serata', 'archivio', 'classifica'].indexOf(v) < 0) v = 'archivio';
+    if (['serata', 'archivio', 'classifica', 'fazioni'].indexOf(v) < 0) v = 'archivio';
     S.view = v;
-    ['serata', 'archivio', 'classifica'].forEach(function (x) { $('#v-' + x).hidden = x !== v; });
+    ['serata', 'archivio', 'classifica', 'fazioni'].forEach(function (x) { $('#v-' + x).hidden = x !== v; });
     Array.prototype.forEach.call(document.querySelectorAll('.tabs button'), function (a) {
       if (a.dataset.view === v || (v === 'serata' && a.dataset.view === 'archivio')) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     });
+    if (v === 'fazioni') { try { renderFaz(); } catch (e) {} }
     if (location.hash !== '#' + v) { try { location.hash = v; } catch (e) {} }
   }
   window.addEventListener('hashchange', function () { var v = (location.hash || '').slice(1); if (v !== S.view) setView(v); });
@@ -1680,9 +1720,182 @@ try {
     if (e.target && e.target.id === 'imp') { importFile(e.target.files[0]); e.target.value = ''; }
   });
 
+  /* ---------- fazioni ---------- */
+  var F = { init: false, saved: null, red: [], blue: [], flip: false, date: '', dateTouched: false, clan: 'Clan Lonewolf', imgs: {} };
+  function lastDoc() { return A.docs && A.docs.length ? A.docs[0] : null; }
+  function redIdxOf(d) { return d && d.names && d.names[2] === '1' ? 0 : 1; }
+  function redSideOf(d) {
+    if (!d) return 'CT';
+    var ri = redIdxOf(d), v = { T: 0, CT: 0 };
+    (d.maps || []).forEach(function (m) {
+      if (m.s == null || (m.w !== 'CT' && m.w !== 'T')) return;
+      var side = m.s === ri ? m.w : (m.w === 'T' ? 'CT' : 'T');
+      v[side]++;
+    });
+    return v.T >= v.CT ? 'T' : 'CT';
+  }
+  function fzFromDoc(d) {
+    var ri = redIdxOf(d);
+    F.red = []; F.blue = [];
+    (d ? d.players || [] : []).forEach(function (p) {
+      if (p.sq === ri) F.red.push({ k: p.k, n: p.n });
+      else if (p.sq === 1 - ri) F.blue.push({ k: p.k, n: p.n });
+    });
+  }
+  function fzPool() {
+    var by = {};
+    (A.docs || []).slice().sort(function (a, b) { return a.ts - b.ts; }).forEach(function (d) { (d.players || []).forEach(function (p) { by[p.k] = p.n; }); });
+    return by;
+  }
+  function addDays(iso, n) { var d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); }
+  function fzRedSide() { var s = redSideOf(lastDoc()) === 'T' ? 'CT' : 'T'; return F.flip ? (s === 'T' ? 'CT' : 'T') : s; }
+  function renderFaz() {
+    var d = lastDoc();
+    if (!F.init && A.ready) {
+      if (F.saved && F.saved.red) { F.red = F.saved.red.slice(); F.blue = F.saved.blue.slice(); if (F.saved.clan != null) F.clan = F.saved.clan; }
+      else fzFromDoc(d);
+      F.init = true;
+    }
+    if (!F.dateTouched) F.date = d ? addDays(d.date, 7) : new Date().toISOString().slice(0, 10);
+    $('#fzdate').value = F.date; if (document.activeElement !== $('#fzclan')) $('#fzclan').value = F.clan;
+    var rs = fzRedSide();
+    $('#faznote').textContent = d ? 'Ultima battaglia ' + dmy(d.date) + ': la Squadra Rossa era ' + (redSideOf(d) === 'T' ? 'Terroristi' : 'Antiterroristi') + '. Questa volta si invertono.' : 'Nessuna battaglia in archivio: componi le squadre a mano.';
+    function col(list, team, side) {
+      var other = team === 'red' ? 'blue' : 'red';
+      return '<h3><i class="sw ' + (team === 'red' ? 'ros' : 'blu') + '"></i>Squadra ' + (team === 'red' ? 'Rossa' : 'Blu') + ' <small>' + (side === 'T' ? 'Terroristi' : 'Antiterroristi') + ' · ' + plural(list.length, 'giocatore', 'giocatori') + '</small></h3>' +
+        '<div class="fzlist">' + (list.map(function (p) {
+          return '<span class="fzchip">' + avHtml(p.k, p.n, team === 'red' ? 'fzr' : 'fzb') + esc(p.n) +
+            '<button type="button" data-fzmove="' + esc(p.k) + '" data-to="' + other + '" title="Sposta nella Squadra ' + (other === 'red' ? 'Rossa' : 'Blu') + '">→ ' + (other === 'red' ? 'Rossa' : 'Blu') + '</button>' +
+            '<button type="button" data-fzmove="' + esc(p.k) + '" data-to="" title="Togli dalla squadra">✕</button></span>';
+        }).join('') || '<span class="note">Nessun giocatore.</span>') + '</div>';
+    }
+    var redSide = rs, blueSide = rs === 'T' ? 'CT' : 'T';
+    $('#fzA').innerHTML = col(F.red, 'red', redSide);
+    $('#fzB').innerHTML = col(F.blue, 'blue', blueSide);
+    var pool = fzPool(), used = {};
+    F.red.concat(F.blue).forEach(function (p) { used[p.k] = 1; });
+    var rest = Object.keys(pool).filter(function (k) { return !used[k]; });
+    $('#fzrest').innerHTML = rest.length ? '<h4>Altri giocatori dell’archivio</h4><div class="fzlist">' + rest.map(function (k) {
+      return '<span class="fzchip">' + avHtml(k, pool[k], 'sqn') + esc(pool[k]) + '<button type="button" data-fzmove="' + esc(k) + '" data-to="red">+ Rossa</button><button type="button" data-fzmove="' + esc(k) + '" data-to="blue">+ Blu</button></span>';
+    }).join('') + '</div>' : '';
+    var canW = A.ok && A.canWrite !== false;
+    $('[data-fz="save"]').disabled = !canW;
+    drawFaz();
+  }
+  function fzImg(key) {
+    var src = FACES[key];
+    if (!src) return Promise.resolve(null);
+    var c = F.imgs[key];
+    if (c && c.src === src) return c.p;
+    var im = new Image();
+    var p = new Promise(function (ok) { im.onload = function () { ok(im); }; im.onerror = function () { ok(null); }; });
+    im.src = src; F.imgs[key] = { src: src, p: p };
+    return p;
+  }
+  var fzDrawSeq = 0;
+  async function drawFaz() {
+    var seq = ++fzDrawSeq, cv = $('#fzcanvas'), x = cv.getContext('2d'), W = 1600, H = 900;
+    var DISP = '"Big Shoulders Display", Impact, "Arial Narrow", sans-serif', BODY = '"Hanken Grotesk", Arial, sans-serif';
+    try { if (document.fonts) await Promise.all([document.fonts.load('900 80px "Big Shoulders Display"'), document.fonts.load('700 26px "Hanken Grotesk"')]); } catch (e) {}
+    var rs = fzRedSide();
+    var left = rs === 'T' ? { list: F.red, col: '#e5484d', dark: '#7a1f22', name: 'Squadra Rossa' } : { list: F.blue, col: '#3987e5', dark: '#173f73', name: 'Squadra Blu' };
+    var right = rs === 'T' ? { list: F.blue, col: '#3987e5', dark: '#173f73', name: 'Squadra Blu' } : { list: F.red, col: '#e5484d', dark: '#7a1f22', name: 'Squadra Rossa' };
+    left.label = 'TERRORISTI'; right.label = 'ANTITERRORISTI';
+    var imgs = {};
+    await Promise.all(left.list.concat(right.list).map(function (p) { return fzImg(p.k).then(function (im) { imgs[p.k] = im; }); }));
+    if (seq !== fzDrawSeq) return;
+    var g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#151a1f'); g.addColorStop(1, '#0b0e11');
+    x.fillStyle = g; x.fillRect(0, 0, W, H);
+    x.strokeStyle = 'rgba(255,255,255,0.035)'; x.lineWidth = 1;
+    for (var gx = 0; gx < W; gx += 40) { x.beginPath(); x.moveTo(gx + .5, 0); x.lineTo(gx + .5, H); x.stroke(); }
+    for (var gy = 0; gy < H; gy += 40) { x.beginPath(); x.moveTo(0, gy + .5); x.lineTo(W, gy + .5); x.stroke(); }
+    x.textAlign = 'center'; x.textBaseline = 'alphabetic';
+    var clan = (F.clan || '').trim();
+    if (clan) { x.fillStyle = '#b3bac1'; x.font = '700 28px ' + BODY; x.fillText(clan.toUpperCase().split('').join(String.fromCharCode(8202)), W / 2, 58); }
+    x.fillStyle = '#f0a830'; x.font = '900 84px ' + DISP;
+    x.fillText('FAZIONI  ' + dmy(F.date), W / 2, clan ? 138 : 120);
+    function panel(P, x0) {
+      var y0 = 175, w = 700, h = 640;
+      x.fillStyle = 'rgba(255,255,255,0.03)'; x.fillRect(x0, y0, w, h);
+      x.strokeStyle = P.col; x.lineWidth = 3; x.strokeRect(x0 + 1.5, y0 + 1.5, w - 3, h - 3);
+      x.fillStyle = P.col; x.fillRect(x0, y0, w, 8);
+      x.font = '700 26px ' + BODY; x.fillStyle = '#eceef0'; x.textAlign = 'center';
+      x.fillText(P.name.toUpperCase() + '  ·  ' + plural(P.list.length, 'GIOCATORE', 'GIOCATORI'), x0 + w / 2, y0 + 50);
+      var n = P.list.length, areaY = y0 + 75, areaH = h - 75 - 130;
+      if (n) {
+        var cols = n <= 3 ? n : n <= 8 ? Math.ceil(n / 2) : Math.ceil(n / 3), rows = Math.ceil(n / cols);
+        var cw = (w - 40) / cols, ch = areaH / rows, r = Math.min(cw * 0.36, (ch - 44) / 2, 88);
+        P.list.forEach(function (p, k) {
+          var row = Math.floor(k / cols), inRow = row === rows - 1 ? n - row * cols : cols;
+          var cx = x0 + w / 2 + ((k % cols) - (inRow - 1) / 2) * cw, cy = areaY + ch * row + ch / 2 - 18;
+          x.save(); x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.closePath();
+          var rg = x.createRadialGradient(cx, cy - r * 0.3, r * 0.1, cx, cy, r); rg.addColorStop(0, P.dark); rg.addColorStop(1, '#14191e');
+          x.fillStyle = rg; x.fill(); x.clip();
+          var im = imgs[p.k];
+          if (im) x.drawImage(im, cx - r, cy - r, r * 2, r * 2);
+          else { x.fillStyle = '#eceef0'; x.font = '800 ' + Math.round(r) + 'px ' + DISP; x.textBaseline = 'middle'; x.fillText(initial(p.n), cx, cy + 4); x.textBaseline = 'alphabetic'; }
+          x.restore();
+          x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.strokeStyle = P.col; x.lineWidth = 5; x.stroke();
+          x.fillStyle = '#eceef0';
+          var fsz = r > 70 ? 26 : 22; x.font = '700 ' + fsz + 'px ' + BODY;
+          while (x.measureText(p.n).width > cw - 8 && fsz > 17) { fsz--; x.font = '700 ' + fsz + 'px ' + BODY; }
+          var nm = p.n; while (x.measureText(nm).width > cw - 8 && nm.length > 3) nm = nm.slice(0, -2) + '…';
+          x.fillText(nm, cx, cy + r + 32);
+        });
+      } else { x.fillStyle = '#838c95'; x.font = '500 26px ' + BODY; x.fillText('Nessun giocatore', x0 + w / 2, areaY + areaH / 2); }
+      var by = y0 + h - 112, bx = x0 + 60, bw = w - 120;
+      var bg2 = x.createLinearGradient(bx, 0, bx + bw, 0); bg2.addColorStop(0, P.dark); bg2.addColorStop(0.5, P.col); bg2.addColorStop(1, P.dark);
+      x.fillStyle = bg2; x.fillRect(bx, by, bw, 84);
+      x.strokeStyle = 'rgba(255,255,255,0.5)'; x.lineWidth = 2; x.strokeRect(bx + 1, by + 1, bw - 2, 82);
+      var lsz = 66; x.font = '900 ' + lsz + 'px ' + DISP;
+      while (x.measureText(P.label).width > bw - 40 && lsz > 36) { lsz -= 2; x.font = '900 ' + lsz + 'px ' + DISP; }
+      x.fillStyle = '#ffffff'; x.fillText(P.label, x0 + w / 2, by + 42 + lsz * 0.36);
+    }
+    panel(left, 60); panel(right, 840);
+    x.beginPath(); x.arc(W / 2, 495, 44, 0, Math.PI * 2); x.fillStyle = '#0f1215'; x.fill(); x.strokeStyle = '#f0a830'; x.lineWidth = 3; x.stroke();
+    x.fillStyle = '#f0a830'; x.font = '900 46px ' + DISP; x.fillText('VS', W / 2, 512);
+    x.fillStyle = '#838c95'; x.font = '600 20px ' + BODY; x.fillText('LONEBURDEGAZZ 2.0', W / 2, 872);
+  }
+  function fzBlob() { return new Promise(function (ok) { $('#fzcanvas').toBlob(function (b) { ok(b); }, 'image/png'); }); }
+  document.addEventListener('click', async function (e) {
+    var mv = e.target.closest && e.target.closest('[data-fzmove]');
+    if (mv) {
+      var k = mv.dataset.fzmove, to = mv.dataset.to, pool = fzPool();
+      var p = F.red.concat(F.blue).filter(function (q) { return q.k === k; })[0] || { k: k, n: pool[k] || k };
+      F.red = F.red.filter(function (q) { return q.k !== k; }); F.blue = F.blue.filter(function (q) { return q.k !== k; });
+      if (to === 'red') F.red.push(p); else if (to === 'blue') F.blue.push(p);
+      $('#fzmsg').textContent = 'Modifiche non salvate.'; renderFaz(); return;
+    }
+    var b = e.target.closest && e.target.closest('[data-fz]');
+    if (!b) return;
+    var a = b.dataset.fz;
+    if (a === 'flip') { F.flip = !F.flip; renderFaz(); }
+    else if (a === 'reset') { fzFromDoc(lastDoc()); $('#fzmsg').textContent = 'Squadre prese dall’ultima battaglia (non ancora salvate).'; renderFaz(); }
+    else if (a === 'save') {
+      if (!A.db) return;
+      try { await A.db.doc('impostazioni/fazioni').set({ v: 1, red: F.red, blue: F.blue, clan: F.clan, ts: Date.now() }); $('#fzmsg').textContent = 'Squadre salvate: le vedono tutti.'; }
+      catch (er) { $('#fzmsg').textContent = er && er.code === 'invalid_argument' ? 'Non hai il permesso di salvare.' : 'Salvataggio non riuscito.'; }
+    }
+    else if (a === 'png') {
+      var bl = await fzBlob(); if (!bl) return;
+      var url = URL.createObjectURL(bl), an = document.createElement('a');
+      an.href = url; an.download = 'fazioni-' + F.date + '.png'; document.body.appendChild(an); an.click();
+      setTimeout(function () { URL.revokeObjectURL(url); an.remove(); }, 1500);
+    }
+    else if (a === 'share') {
+      var bl2 = await fzBlob(); if (!bl2) return;
+      var file = new File([bl2], 'fazioni-' + F.date + '.png', { type: 'image/png' });
+      try { await navigator.share({ files: [file], title: 'Fazioni ' + dmy(F.date) }); } catch (er) {}
+    }
+  });
+  $('#fzdate').addEventListener('change', function (e) { if (e.target.value) { F.date = e.target.value; F.dateTouched = true; drawFaz(); } });
+  $('#fzclan').addEventListener('input', function (e) { F.clan = e.target.value; drawFaz(); });
+  try { var tf = new File([new Blob(['x'])], 'x.png', { type: 'image/png' }); if (navigator.canShare && navigator.canShare({ files: [tf] })) $('#fzshare').hidden = false; } catch (e) {}
+
   function facesChanged() {
     if (S.r) { renderTable(); renderAwards(); }
     renderRank();
+    if (S.view === 'fazioni') renderFaz();
   }
   function faceMsg(m) { var el = $('#facemsg'); if (el) el.textContent = m || ''; }
   function canFace() {
@@ -1701,9 +1914,9 @@ try {
         im.onload = function () {
           var w = im.naturalWidth, h = im.naturalHeight, s = Math.min(w, h), N = 128;
           var c = document.createElement('canvas'); c.width = c.height = N;
-          var x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, N, N);
+          var x = c.getContext('2d'); var png = /png|webp|gif/i.test(file.type || ''); if (!png) { x.fillStyle = '#fff'; x.fillRect(0, 0, N, N); }
           x.drawImage(im, (w - s) / 2, (h - s) * 0.25, s, s, 0, 0, N, N);
-          ok(c.toDataURL('image/jpeg', 0.85));
+          ok(png ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', 0.85)); /* PNG: tiene lo sfondo trasparente */
         };
         im.src = fr.result;
       };
@@ -1796,11 +2009,15 @@ try {
       if (A.msg === 'L’archivio non risponde ancora. Riprovo in automatico.') A.msg = '';
       A.docs = snap.docs.map(function (d) { return d.data(); });
       renderArchive(); renderSave();
+      if (S.view === 'fazioni') renderFaz();
     }, function (err) {
       clearTimeout(timer);
       A.ready = true; A.err = (err && err.code) || 'err';
       renderArchive(); renderSave();
     });
+    try {
+      db.doc('impostazioni/fazioni').get().then(function (s) { if (s.exists) { F.saved = s.data(); F.init = false; } if (S.view === 'fazioni') renderFaz(); }, function () {});
+    } catch (e) {}
     try {
       db.collection('volti').limit(300).onSnapshot(function (snap) {
         var m = {};
