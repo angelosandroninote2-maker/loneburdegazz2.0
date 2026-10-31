@@ -328,6 +328,22 @@ tr.picked td { background: var(--bg); }
 .fzprev canvas { display: block; width: 100%; height: auto; }
 .av.fzr { border-color: var(--ros); } .av.fzb { border-color: var(--blu); }
 @media (max-width: 760px) { .fzgrid { grid-template-columns: 1fr; } }
+.plegend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; font-size: 13px; color: var(--ink2); margin-bottom: 14px; }
+.plegend span { display: inline-flex; align-items: center; gap: 7px; }
+.plegend .btn { margin-left: auto; }
+.pc { display: inline-block; width: 16px; height: 16px; border: 1px solid rgba(0,0,0,.25); }
+.pc.v, td.pv { background: #2fa84f; } .pc.g, td.pg { background: #f2c94c; } .pc.a, td.pa { background: #f2994a; } .pc.r, td.pr { background: #e04848; } .pc.n, td.pn { background: #16191c; }
+table.ptab { border-collapse: collapse; font-size: 13px; min-width: 100%; }
+table.ptab th, table.ptab td { border: 1px solid var(--line); padding: 5px 7px; text-align: center; white-space: nowrap; }
+table.ptab thead th { background: var(--surface); font-weight: 700; position: sticky; top: 0; }
+table.ptab th.pn2 { writing-mode: vertical-rl; transform: rotate(180deg); padding: 8px 4px; font-size: 12px; min-width: 32px; }
+table.ptab td.pcell { color: #12171c; font-family: var(--f-mono); font-size: 11px; min-width: 44px; cursor: default; }
+table.ptab td.pcell.edit { cursor: pointer; }
+table.ptab td.pcell.ov { box-shadow: inset 0 0 0 2px #12171c; }
+table.ptab td.pn { color: #eceef0; }
+table.ptab td.dt { text-align: left; font-weight: 600; }
+table.ptab td.pts { font-weight: 700; }
+table.ptab tr.ptot td { font-weight: 700; background: var(--surface); }
 @media (max-width: 900px) {
   .vstrip, .cols { grid-template-columns: minmax(0, 1fr); }
   .maplist { flex-direction: row; overflow-x: auto; padding-bottom: 6px; scroll-snap-type: x proximity; }
@@ -376,6 +392,7 @@ tr.picked td { background: var(--bg); }
     <button type="button" data-view="archivio">Elenco battaglie <span class="cnt" id="cnt"></span></button>
     <button type="button" data-view="classifica">Classifica generale</button>
     <button type="button" data-view="fazioni">Fazioni</button>
+    <button type="button" data-view="presenze">Presenze</button>
   </nav>
 
   <div class="view" id="v-archivio">
@@ -411,6 +428,22 @@ tr.picked td { background: var(--bg); }
         <button type="button" class="btn go" data-fz="png">Scarica immagine</button>
         <button type="button" class="btn ghost" data-fz="share" id="fzshare" hidden>Condividi</button>
       </div>
+    </section>
+  </div>
+
+  <div class="view" id="v-presenze" hidden>
+    <section class="sec">
+      <header><h2>Presenze</h2><p id="presnote"></p></header>
+      <div class="plegend">
+        <span><i class="pc v"></i>Presente entro le 22:15</span>
+        <span><i class="pc g"></i>Entrato dopo le 22:15</span>
+        <span><i class="pc a"></i>Entrato dopo le 22:30</span>
+        <span><i class="pc r"></i>Non ha giocato entro le 00:10</span>
+        <span><i class="pc n"></i>In panchina</span>
+        <button type="button" class="btn go sm" data-pres="xlsx">Scarica Excel</button>
+      </div>
+      <div class="tablewrap" id="pres"></div>
+      <p class="note" id="presmsg" role="status" style="margin-top:10px"></p>
     </section>
   </div>
 
@@ -1077,7 +1110,7 @@ try {
       return;
     }
     $('#msg').textContent = '';
-    S.parsed = parsed; S.overrides = {}; S.open = {}; S.scope = 'all'; S.label = label;
+    S.parsed = parsed; S.overrides = {}; S.open = {}; S.scope = 'all'; S.label = label; S.pres = null;
     S.swap = false; S.names = ['Squadra Blu', 'Squadra Rossa']; applySwap();
     S.source = source || 'file'; S.savedId = null; A.msg = '';
     recompute();
@@ -1097,6 +1130,29 @@ try {
     }
     return null;
   }
+  /* Presenze: ora di entrata = prima comparsa del giocatore nel log completo (non tagliato). */
+  var PRES_LIM = { v: 22 * 60 + 15, g: 22 * 60 + 30, a: 24 * 60 + 10 };
+  function presMin(t) { var a = t.split(':'), m = (+a[0]) * 60 + (+a[1]) + (+a[2] || 0) / 60; if (+a[0] < 12) m += 1440; return m; }
+  function presCol(t) { var m = presMin(t); return m <= PRES_LIM.v ? 'v' : m <= PRES_LIM.g ? 'g' : m <= PRES_LIM.a ? 'a' : 'r'; }
+  function presence(text) {
+    var re = /^L (\d\d)\/(\d\d)\/(\d{4}) - (\d\d:\d\d:\d\d): (.*)$/, tk = /"([^"<]*)<\d+><(STEAM_[^>]+)>/g;
+    var lines = text.split(/\r?\n/), start = null, out = {};
+    for (var i = 0; i < lines.length; i++) {
+      var m = re.exec(lines[i]); if (!m) continue;
+      var t = m[4]; if (!start) start = t;
+      var x; tk.lastIndex = 0;
+      while ((x = tk.exec(m[5]))) { if (!out[x[2]]) out[x[2]] = { n: x[1], t: t }; }
+    }
+    if (!start) return null;
+    var res = {};
+    Object.keys(out).forEach(function (k) {
+      var o = out[k], c = presCol(o.t);
+      /* era già in partita quando il log è partito: puntuale */
+      if (presMin(o.t) - presMin(start) <= 1 && c !== 'v') { c = 'v'; o.pre = 1; }
+      res[k] = { n: o.n, t: o.t.slice(0, 5), c: c, pre: o.pre ? 1 : 0 };
+    });
+    return { start: start.slice(0, 5), p: res };
+  }
   function readFiles(files) {
     var list = Array.prototype.slice.call(files);
     if (!list.length) return;
@@ -1113,6 +1169,7 @@ try {
       list.forEach(function (f, n) { if (/^L \d\d\/\d\d\/\d{4} - /m.test(texts[n])) { used.push(f.name); parts.push(texts[n]); } });
       if (!parts.length) { $('#msg').textContent = 'Non ho trovato righe di log in questi file.'; return; }
       var all = parts.join('\n'), word = ($('#cutword') || {}).value || '';
+      var pres = null; try { pres = presence(all); } catch (e) { pres = null; }
       try { localStorage.setItem('lbg-cut', word); } catch (e) {}
       var cut = cutFrom(all, word), note;
       if (cut) { all = cut.text; note = 'Parto dal messaggio “' + word.trim() + '” di ' + cut.who + ' alle ' + cut.time.slice(0, 5) + ' (scartate ' + nf.format(cut.dropped) + ' righe prima).'; }
@@ -1120,6 +1177,7 @@ try {
       else note = '';
       var label = used.length > 3 ? plural(used.length, 'file', 'file') + ' (' + used[0] + ' … ' + used[used.length - 1] + ')' : used.join(', ');
       load(all, label);
+      S.pres = pres;
       if (S.parsed && note) $('#msg').textContent = (used.length > 1 ? 'Uniti ' + used.length + ' file. ' : '') + note;
     }, function () { $('#msg').textContent = 'Non riesco a leggere il file.'; });
   }
@@ -1398,13 +1456,14 @@ try {
 
   function setView(v) {
     document.body.classList.toggle('indetail', v === 'serata');
-    if (['serata', 'archivio', 'classifica', 'fazioni'].indexOf(v) < 0) v = 'archivio';
+    if (['serata', 'archivio', 'classifica', 'fazioni', 'presenze'].indexOf(v) < 0) v = 'archivio';
     S.view = v;
-    ['serata', 'archivio', 'classifica', 'fazioni'].forEach(function (x) { $('#v-' + x).hidden = x !== v; });
+    ['serata', 'archivio', 'classifica', 'fazioni', 'presenze'].forEach(function (x) { $('#v-' + x).hidden = x !== v; });
     Array.prototype.forEach.call(document.querySelectorAll('.tabs button'), function (a) {
       if (a.dataset.view === v || (v === 'serata' && a.dataset.view === 'archivio')) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     });
     if (v === 'fazioni') { try { renderFaz(); } catch (e) {} }
+    if (v === 'presenze') { try { renderPres(); } catch (e) {} }
     if (location.hash !== '#' + v) { try { location.hash = v; } catch (e) {} }
   }
   window.addEventListener('hashchange', function () { var v = (location.hash || '').slice(1); if (v !== S.view) setView(v); });
@@ -1551,6 +1610,9 @@ try {
     A.busy = true; A.msg = 'Salvo…'; renderSave();
     try {
       var pk = L.pack(S.parsed, S.r, [S.names[0], S.names[1], S.swap ? '1' : ''], S.overrides);
+      var old = (A.docs || []).filter(function (d) { return d.id === pk.id; })[0];
+      if (S.pres) pk.summary.pres = S.pres; else if (old && old.pres) pk.summary.pres = old.pres;
+      if (old && old.presOv) pk.summary.presOv = old.presOv;
       await A.db.doc('dettagli/' + pk.id).set(pk.detail);
       await A.db.doc('battaglie/' + pk.id).set(pk.summary);
       S.savedId = pk.id; A.msg = 'Salvata.';
@@ -1893,6 +1955,133 @@ try {
   $('#fzclan').addEventListener('input', function (e) { F.clan = e.target.value; drawFaz(); });
   try { var tf = new File([new Blob(['x'])], 'x.png', { type: 'image/png' }); if (navigator.canShare && navigator.canShare({ files: [tf] })) $('#fzshare').hidden = false; } catch (e) {}
 
+  /* ---------- presenze ---------- */
+  var BENCH = ['Carnefice', 'Innominato', 'Macellaio'];
+  var PCOL = { v: 'Presente', g: 'Ritardo (dopo le 22:15)', a: 'Ritardo extra (dopo le 22:30)', r: 'Non ha giocato', n: 'Panchina' };
+  function presModel() {
+    var docs = (A.docs || []).slice().sort(function (a, b) { return a.ts - b.ts; });
+    var names = {};
+    docs.forEach(function (d) { (d.players || []).forEach(function (p) { names[p.k] = p.n; }); if (d.pres) Object.keys(d.pres.p).forEach(function (k) { if (!names[k] && d.players && d.players.some(function (q) { return q.k === k; })) names[k] = d.pres.p[k].n; }); });
+    (F.saved && F.saved.red ? F.saved.red.concat(F.saved.blue) : F.red.concat(F.blue)).forEach(function (p) { names[p.k] = names[p.k] || p.n; });
+    var keys = Object.keys(names).sort(function (a, b) { return names[a].toLowerCase() < names[b].toLowerCase() ? -1 : 1; });
+    var totR = 0, totB = 0;
+    var rows = docs.map(function (d, i) {
+      var ri = redIdxOf(d), pr = d.wins ? d.wins[ri] : 0, pb = d.wins ? d.wins[1 - ri] : 0;
+      totR += pr; totB += pb;
+      var cells = keys.map(function (k) {
+        var ov = d.presOv && d.presOv[k], e = d.pres && d.pres.p[k], played = (d.players || []).some(function (p) { return p.k === k; });
+        var c, t = '';
+        if (e && (played || e.c !== 'r')) { c = e.c; t = e.pre ? '' : e.t; }
+        else if (played) c = d.pres ? 'v' : '?';
+        else c = 'r';
+        if (ov) c = ov;
+        return { k: k, c: c, t: t, ov: !!ov, auto: !d.pres };
+      });
+      return { d: d, n: i + 1, cells: cells, pr: pr, pb: pb, tr: totR, tb: totB };
+    });
+    return { keys: keys, names: names, rows: rows };
+  }
+  function renderPres() {
+    var M = presModel(), box = $('#pres');
+    var noPres = M.rows.filter(function (r) { return !r.d.pres; }).length;
+    $('#presnote').textContent = M.rows.length ? plural(M.rows.length, 'serata', 'serate') + (noPres ? ' · ' + noPres + ' senza orari: ricaricale con i log completi per avere i ritardi' : '') : '';
+    if (!M.rows.length) { box.innerHTML = '<div class="empty">Le presenze compaiono dopo la prima battaglia salvata.</div>'; return; }
+    var canW = A.ok && A.canWrite !== false;
+    var head = '<thead><tr><th>N°</th><th>Data</th>' + M.keys.map(function (k) { return '<th class="pn2">' + esc(M.names[k]) + '</th>'; }).join('') +
+      BENCH.map(function (b) { return '<th class="pn2">' + esc(b) + '</th>'; }).join('') + '<th>Parz.<br>Rossa</th><th>Parz.<br>Blu</th><th>Totale<br>Rossa</th><th>Totale<br>Blu</th></tr></thead>';
+    var cnt = {}; M.keys.forEach(function (k) { cnt[k] = { v: 0, g: 0, a: 0, r: 0 }; });
+    var body = M.rows.map(function (r) {
+      return '<tr><td>' + r.n + '</td><td class="dt">' + dmy(r.d.date) + '</td>' + r.cells.map(function (c) {
+        if (cnt[c.k][c.c] != null) cnt[c.k][c.c]++;
+        var cls = c.c === '?' ? 'pv' : 'p' + c.c;
+        return '<td class="pcell ' + cls + (canW ? ' edit' : '') + (c.ov ? ' ov' : '') + '" data-pid="' + esc(r.d.id) + '" data-pk="' + esc(c.k) + '" title="' + esc(M.names[c.k] + ' · ' + (PCOL[c.c] || 'Presente (orario non disponibile)') + (c.t ? ' · entrato alle ' + c.t : '') + (c.ov ? ' · corretto a mano' : '') + (canW ? ' · clic per cambiare' : '')) + '">' + esc(c.t) + '</td>';
+      }).join('') + BENCH.map(function () { return '<td class="pcell pn" title="Panchina"></td>'; }).join('') +
+        '<td class="pts">' + r.pr + '</td><td class="pts">' + r.pb + '</td><td class="pts">' + r.tr + '</td><td class="pts">' + r.tb + '</td></tr>';
+    }).join('');
+    var tot = '<tr class="ptot"><td></td><td class="dt">Verdi / gialli / arancioni / rossi</td>' + M.keys.map(function (k) { var c = cnt[k]; return '<td title="' + esc(M.names[k]) + '">' + c.v + '/' + c.g + '/' + c.a + '/' + c.r + '</td>'; }).join('') + BENCH.map(function () { return '<td></td>'; }).join('') + '<td colspan="4"></td></tr>';
+    box.innerHTML = '<table class="ptab">' + head + '<tbody>' + body + tot + '</tbody></table>';
+    $('#presmsg').textContent = canW ? 'Clic su una casella per correggerla a mano (verde → giallo → arancione → rosso → nero → automatico).' : '';
+  }
+  document.addEventListener('click', async function (e) {
+    var td = e.target.closest && e.target.closest('td.pcell.edit');
+    if (td && td.dataset.pid) {
+      var d = (A.docs || []).filter(function (x) { return x.id === td.dataset.pid; })[0]; if (!d) return;
+      var k = td.dataset.pk, seq = ['v', 'g', 'a', 'r', 'n', ''];
+      var cur = d.presOv && d.presOv[k] || '', nx = seq[(seq.indexOf(cur) + 1) % seq.length];
+      var nd = JSON.parse(JSON.stringify(d)); nd.presOv = nd.presOv || {};
+      if (nx) nd.presOv[k] = nx; else delete nd.presOv[k];
+      try { await A.db.doc('battaglie/' + d.id).set(nd); $('#presmsg').textContent = 'Casella aggiornata.'; }
+      catch (er) { $('#presmsg').textContent = er && er.code === 'invalid_argument' ? 'Non hai il permesso di modificare.' : 'Modifica non riuscita.'; }
+      return;
+    }
+    var b = e.target.closest && e.target.closest('[data-pres="xlsx"]');
+    if (b) presXlsx();
+  });
+  /* --- Excel (.xlsx) scritto a mano: zip senza compressione + fogli XML --- */
+  var CRC = (function () { var t = []; for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  function crc32(u) { var c = 0xFFFFFFFF; for (var i = 0; i < u.length; i++) c = CRC[(c ^ u[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+  function zip(files) {
+    var enc = new TextEncoder(), parts = [], cen = [], off = 0;
+    function u16(v) { return [v & 255, (v >>> 8) & 255]; }
+    function u32(v) { return [v & 255, (v >>> 8) & 255, (v >>> 16) & 255, (v >>> 24) & 255]; }
+    files.forEach(function (f) {
+      var name = enc.encode(f.name), data = enc.encode(f.data), c = crc32(data);
+      var lh = [].concat(u32(0x04034b50), u16(20), u16(0x0800), u16(0), u16(0), u16(0x21), u32(c), u32(data.length), u32(data.length), u16(name.length), u16(0));
+      parts.push(new Uint8Array(lh), name, data);
+      cen.push([].concat(u32(0x02014b50), u16(20), u16(20), u16(0x0800), u16(0), u16(0), u16(0x21), u32(c), u32(data.length), u32(data.length), u16(name.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(off)), name);
+      off += lh.length + name.length + data.length;
+    });
+    var cstart = off, clen = 0;
+    cen.forEach(function (x) { var a = x instanceof Uint8Array ? x : new Uint8Array(x); parts.push(a); clen += a.length; });
+    parts.push(new Uint8Array([].concat(u32(0x06054b50), u16(0), u16(0), u16(files.length), u16(files.length), u32(clen), u32(cstart), u16(0))));
+    return new Blob(parts, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  }
+  function xesc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function presXlsx() {
+    var M = presModel(); if (!M.rows.length) { $('#presmsg').textContent = 'Nessuna serata da esportare.'; return; }
+    var ST = { v: 2, g: 3, a: 4, r: 5, n: 6, '?': 2 };
+    function col(i) { var s = ''; i++; while (i) { var m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; }
+    function cell(r, c, v, s) { var ref = col(c) + r; if (v === '' || v == null) return '<c r="' + ref + '"' + (s ? ' s="' + s + '"' : '') + '/>'; if (typeof v === 'number') return '<c r="' + ref + '" s="' + (s || 0) + '"><v>' + v + '</v></c>'; return '<c r="' + ref + '" t="inlineStr" s="' + (s || 0) + '"><is><t>' + xesc(v) + '</t></is></c>'; }
+    var rows = [], R = 1;
+    rows.push('<row r="1">' + cell(1, 1, 'Plotone Lonewolf · Presenze', 1) + '</row>');
+    rows.push('<row r="2">' + cell(2, 1, 'Verde: presente entro le 22:15 · Giallo: dopo le 22:15 · Arancione: dopo le 22:30 · Rosso: non ha giocato entro le 00:10 · Nero: panchina', 0) + '</row>');
+    var hdr = ['N°', 'Data'].concat(M.keys.map(function (k) { return M.names[k]; }), BENCH, ['Parz. Rossa', 'Parz. Blu', 'Totale Rossa', 'Totale Blu']);
+    rows.push('<row r="4">' + hdr.map(function (h, i) { return cell(4, i, h, 7); }).join('') + '</row>');
+    R = 5;
+    M.rows.forEach(function (r) {
+      var cs = [cell(R, 0, r.n, 8), cell(R, 1, dmy(r.d.date), 8)];
+      r.cells.forEach(function (c, i) { cs.push(cell(R, 2 + i, c.t, ST[c.c] || 2)); });
+      BENCH.forEach(function (b, i) { cs.push(cell(R, 2 + M.keys.length + i, '', 6)); });
+      var o = 2 + M.keys.length + BENCH.length;
+      [r.pr, r.pb, r.tr, r.tb].forEach(function (v, i) { cs.push(cell(R, o + i, v, 8)); });
+      rows.push('<row r="' + R + '">' + cs.join('') + '</row>'); R++;
+    });
+    var ncol = hdr.length;
+    var cols = '<cols><col min="1" max="1" width="5" customWidth="1"/><col min="2" max="2" width="11" customWidth="1"/><col min="3" max="' + (ncol - 4) + '" width="13" customWidth="1"/><col min="' + (ncol - 3) + '" max="' + ncol + '" width="12" customWidth="1"/></cols>';
+    var sheet = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane xSplit="2" ySplit="4" topLeftCell="C5" activePane="bottomRight" state="frozen"/></sheetView></sheetViews>' + cols + '<sheetData>' + rows.join('') + '</sheetData></worksheet>';
+    var fill = function (rgb) { return '<fill><patternFill patternType="solid"><fgColor rgb="FF' + rgb + '"/><bgColor indexed="64"/></patternFill></fill>'; };
+    var bd = '<border><left style="thin"><color rgb="FFB0B7BE"/></left><right style="thin"><color rgb="FFB0B7BE"/></right><top style="thin"><color rgb="FFB0B7BE"/></top><bottom style="thin"><color rgb="FFB0B7BE"/></bottom><diagonal/></border>';
+    var xf = function (font, fillId, border) { return '<xf numFmtId="0" fontId="' + font + '" fillId="' + fillId + '" borderId="' + border + '" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'; };
+    var styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+      '<fonts count="4"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="14"/><name val="Calibri"/></font><font><color rgb="FFFFFFFF"/><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>' +
+      '<fills count="8"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>' + fill('2FA84F') + fill('F2C94C') + fill('F2994A') + fill('E04848') + fill('16191C') + fill('E3E7EB') + '</fills>' +
+      '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>' + bd + '</borders>' +
+      '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+      '<cellXfs count="9"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" applyFont="1"/>' + xf(0, 2, 1) + xf(0, 3, 1) + xf(0, 4, 1) + xf(0, 5, 1) + xf(2, 6, 1) + xf(3, 7, 1) + xf(0, 0, 1) + '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+    var files = [
+      { name: '[Content_Types].xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>' },
+      { name: '_rels/.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
+      { name: 'xl/workbook.xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Presenze" sheetId="1" r:id="rId1"/></sheets></workbook>' },
+      { name: 'xl/_rels/workbook.xml.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>' },
+      { name: 'xl/styles.xml', data: styles },
+      { name: 'xl/worksheets/sheet1.xml', data: sheet }
+    ];
+    var blob = zip(files), url = URL.createObjectURL(blob), an = document.createElement('a');
+    an.href = url; an.download = 'presenze-lonewolf.xlsx'; document.body.appendChild(an); an.click();
+    setTimeout(function () { URL.revokeObjectURL(url); an.remove(); }, 1500);
+    $('#presmsg').textContent = 'File Excel pronto.';
+  }
+
   function facesChanged() {
     if (S.r) { renderTable(); renderAwards(); }
     renderRank();
@@ -2015,6 +2204,7 @@ try {
       A.docs = snap.docs.map(function (d) { return d.data(); });
       renderArchive(); renderSave();
       if (S.view === 'fazioni') renderFaz();
+      if (S.view === 'presenze') renderPres();
     }, function (err) {
       clearTimeout(timer);
       A.ready = true; A.err = (err && err.code) || 'err';
