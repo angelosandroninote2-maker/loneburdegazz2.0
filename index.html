@@ -327,6 +327,8 @@ tr.picked td { background: var(--bg); }
 .fzbench h3 { justify-content: center; }
 .fzrest { margin-top: 12px; }
 .acc.plot { margin-top: 18px; border-color: var(--ink); }
+.acc.pag { border-color: var(--ink); }
+.acc.pag > summary small { font-family: var(--f-body); font-size: 13px; font-weight: 500; text-transform: none; color: var(--muted); letter-spacing: 0; margin-left: 8px; }
 #plotprint { display: none; }
 @media print {
   @page { size: A4; margin: 12mm; }
@@ -576,6 +578,18 @@ table.ptab tr.psep td { background: var(--ink); color: var(--bg); text-align: le
     </div>
 
     <section class="vstrip" id="hero" aria-live="polite"></section>
+
+    <details class="acc pag" id="pagbox">
+      <summary>Pagellone della serata <small>voti, 2 top e 2 flop, pronta da mandare nel gruppo</small></summary>
+      <div class="inner">
+        <div class="fzprev"><canvas id="pagcanvas" width="1600" height="900" aria-label="Immagine del pagellone della serata"></canvas></div>
+        <div class="barrow" style="justify-content:flex-start;margin-top:12px">
+          <button type="button" class="btn go" data-pag="png">Scarica immagine</button>
+          <button type="button" class="btn ghost" data-pag="share" id="pagshare" hidden>Condividi</button>
+          <span class="note">Il voto (da 4 a 10) viene da come ha giocato ognuno rispetto agli altri presenti: kill, morti, assist e mappe vinte.</span>
+        </div>
+      </div>
+    </details>
 
     <div class="cols">
       <section class="sec">
@@ -1529,6 +1543,7 @@ try {
   function renderAll() {
     renderTop(); renderHero(); renderSquads(); renderMaps(); renderAwards(); renderScope(); renderTable();
     renderChecks(); renderSave(); renderArchive();
+    try { if ($('#pagbox').open) drawPag(); } catch (e) {}
   }
 
   /* ---------- eventi ---------- */
@@ -2564,8 +2579,124 @@ try {
     }
   });
 
+  /* ---------- PAGELLONE ---------- */
+  var PAG_TOP = ['Macchina da guerra', 'Ha portato la squadra in braccio', 'Cecchino con licenza di uccidere', 'Il server ha chiesto pietà', 'Da convocare in nazionale', 'Rambo in persona', 'Mira laser, nervi d’acciaio', 'I bot tremano solo a sentirlo', 'Generale a cinque stelle', 'Leggenda del plotone'];
+  var PAG_FLOP = ['Disperso in azione', 'Turista del server', 'Ha sparato soprattutto ai muri', 'Più respawn che kill', 'In missione diplomatica', 'Bersaglio mobile di giornata', 'Ha confuso il fucile con l’ombrello', 'Cerca ancora la mappa', 'Stasera in modalità pacifista', 'Lunedì prossimo si rifà'];
+  function pagHash(s) { var h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; }
+  function pagVotes() {
+    if (!S.r) return [];
+    var ps = S.r.players.filter(function (p) { return !p.bot && p.maps > 0 && (p.squad === 0 || p.squad === 1); });
+    if (!ps.length) return [];
+    var sc = ps.map(function (p) { var m = p.maps; return (p.kills - p.deaths) / m + 0.5 * p.assists / m + 6 * p.mapsWon / m; });
+    var mu = sc.reduce(function (a, b) { return a + b; }, 0) / sc.length;
+    var sd = Math.sqrt(sc.reduce(function (a, b) { return a + (b - mu) * (b - mu); }, 0) / sc.length) || 1;
+    return ps.map(function (p, i) {
+      var v = 6 + 1.6 * (sc[i] - mu) / sd; v = Math.max(4, Math.min(10, Math.round(v * 2) / 2));
+      return { k: p.key, n: p.name, sq: p.squad, v: v, s: sc[i] };
+    });
+  }
+  function pagFmt(v) { return String(v).replace('.', ','); }
+  var pagSeq = 0;
+  async function drawPag() {
+    var cv = $('#pagcanvas'); if (!cv || !S.r) return;
+    var seq = ++pagSeq, x = cv.getContext('2d'), W = 1600, H = 900;
+    var DISP = '"Big Shoulders Display", Impact, "Arial Narrow", sans-serif', BODY = '"Hanken Grotesk", Arial, sans-serif';
+    try { if (document.fonts) await Promise.all([document.fonts.load('900 80px "Big Shoulders Display"'), document.fonts.load('700 26px "Hanken Grotesk"')]); } catch (e) {}
+    var V = pagVotes(), imgs = {};
+    await Promise.all(V.map(function (p) { return fzImg(p.k).then(function (im) { imgs[p.k] = im; }); }));
+    if (seq !== pagSeq) return;
+    var COL = function (sq) { return colorOf(sq) === 'Blu' ? { c: '#3987e5', d: '#173f73' } : { c: '#e5484d', d: '#7a1f22' }; };
+    var g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#151a1f'); g.addColorStop(1, '#0b0e11');
+    x.fillStyle = g; x.fillRect(0, 0, W, H);
+    x.strokeStyle = 'rgba(255,255,255,0.035)'; x.lineWidth = 1;
+    for (var gx = 0; gx < W; gx += 40) { x.beginPath(); x.moveTo(gx + .5, 0); x.lineTo(gx + .5, H); x.stroke(); }
+    for (var gy = 0; gy < H; gy += 40) { x.beginPath(); x.moveTo(0, gy + .5); x.lineTo(W, gy + .5); x.stroke(); }
+    x.textAlign = 'center';
+    var top = (F.clan || 'Clan Lonewolf').trim();
+    try { var ss = seasonOf(S.r.date); if (ss) top += '  ·  ' + ss.label + '  ·  serata ' + (Math.floor(isoDiff(S.r.date, ss.start) / 7) + 1) + (ss.auto ? ' di 8' : ''); } catch (e) {}
+    x.fillStyle = '#b3bac1'; x.font = '700 24px ' + BODY; x.fillText(top.toUpperCase(), W / 2, 48);
+    x.fillStyle = '#f0a830'; x.font = '900 72px ' + DISP; x.fillText('SERATA DEL ' + dmy(S.r.date), W / 2, 118);
+    /* punteggio finale */
+    var e = S.r.evening, A0 = COL(0), A1 = COL(1);
+    x.font = '900 40px ' + DISP; x.textAlign = 'right'; x.fillStyle = A0.c; x.fillText(S.names[0].toUpperCase(), W / 2 - 120, 196);
+    x.textAlign = 'left'; x.fillStyle = A1.c; x.fillText(S.names[1].toUpperCase(), W / 2 + 120, 196);
+    x.textAlign = 'center'; x.fillStyle = '#eceef0'; x.font = '900 92px ' + DISP; x.fillText(e.wins[0] + ' – ' + e.wins[1], W / 2, 210);
+    x.font = '600 22px ' + BODY; x.fillStyle = '#b3bac1';
+    x.fillText(e.winner == null ? 'Serata in parità' : 'Vince la ' + S.names[e.winner] + (e.by === 'punti' ? ' ai punti' : ''), W / 2, 246);
+    function avatar(k, n, cx, cy, r, col) {
+      x.save(); x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.closePath();
+      var rg = x.createRadialGradient(cx, cy - r * .3, r * .1, cx, cy, r); rg.addColorStop(0, col.d); rg.addColorStop(1, '#14191e'); x.fillStyle = rg; x.fill(); x.clip();
+      if (imgs[k]) x.drawImage(imgs[k], cx - r, cy - r, r * 2, r * 2);
+      else { x.fillStyle = '#eceef0'; x.font = '800 ' + Math.round(r) + 'px ' + DISP; x.textBaseline = 'middle'; x.textAlign = 'center'; x.fillText(initial(n), cx, cy + 3); x.textBaseline = 'alphabetic'; }
+      x.restore(); x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.strokeStyle = col.c; x.lineWidth = Math.max(3, r / 12); x.stroke();
+    }
+    /* pagellone a due colonne */
+    x.fillStyle = '#f0a830'; x.font = '900 30px ' + DISP; x.textAlign = 'center'; x.fillText('— PAGELLONE —', W / 2, 296);
+    [0, 1].forEach(function (sq) {
+      var col = COL(sq), list = V.filter(function (p) { return p.sq === sq; }).sort(function (a, b) { return b.v - a.v || b.s - a.s; });
+      var x0 = sq === 0 ? 90 : 850, w = 660, y = 320, rh = Math.min(42, 300 / Math.max(list.length, 1));
+      x.fillStyle = col.c; x.fillRect(x0, y - 6, w, 4);
+      list.forEach(function (p, i) {
+        var cy = y + 18 + i * rh;
+        avatar(p.k, p.n, x0 + 18, cy, Math.min(17, rh / 2 - 2), col);
+        x.textAlign = 'left'; x.fillStyle = '#eceef0'; x.font = '700 24px ' + BODY;
+        var nm = p.n; while (x.measureText(nm).width > w - 170 && nm.length > 3) nm = nm.slice(0, -2) + '…';
+        x.fillText(nm, x0 + 46, cy + 8);
+        var tw = x.measureText(nm).width;
+        x.fillStyle = 'rgba(236,238,240,0.25)'; for (var dx = x0 + 56 + tw; dx < x0 + w - 80; dx += 12) x.fillRect(dx, cy + 5, 3, 3);
+        x.textAlign = 'right'; x.fillStyle = p.v >= 7 ? '#5fd38a' : p.v < 6 ? '#f58a8d' : '#eceef0'; x.font = '900 34px ' + DISP; x.fillText(pagFmt(p.v), x0 + w, cy + 12);
+      });
+    });
+    /* 2 top e 2 flop */
+    var sorted = V.slice().sort(function (a, b) { return b.v - a.v || b.s - a.s; });
+    var tops = sorted.slice(0, 2), flops = sorted.slice(-2).reverse().filter(function (p) { return tops.indexOf(p) < 0; });
+    var used = {};
+    function phrase(list, p, i) {
+      var h = pagHash(S.r.date + p.k + i), j = h % list.length, n = 0;
+      while (used[list[j]] && n < list.length) { j = (j + 1) % list.length; n++; }
+      used[list[j]] = 1; return list[j];
+    }
+    function card(p, cx, kind, i) {
+      var col = COL(p.sq), y0 = 640, w = 350, h = 210, isTop = kind === 'top';
+      x.fillStyle = 'rgba(255,255,255,0.04)'; x.fillRect(cx - w / 2, y0, w, h);
+      x.strokeStyle = isTop ? '#5fd38a' : '#f58a8d'; x.lineWidth = 3; x.strokeRect(cx - w / 2 + 1.5, y0 + 1.5, w - 3, h - 3);
+      x.fillStyle = isTop ? '#5fd38a' : '#f58a8d'; x.font = '900 24px ' + DISP; x.textAlign = 'center';
+      x.fillText(isTop ? 'TOP DELLA SERATA' : 'FLOP DELLA SERATA', cx, y0 + 30);
+      avatar(p.k, p.n, cx - 108, y0 + 104, 50, col);
+      x.textAlign = 'left'; x.fillStyle = '#eceef0';
+      var fz = 24; x.font = '700 ' + fz + 'px ' + BODY;
+      while (x.measureText(p.n).width > 195 && fz > 15) { fz--; x.font = '700 ' + fz + 'px ' + BODY; }
+      var nm = p.n; while (x.measureText(nm).width > 195 && nm.length > 3) nm = nm.slice(0, -2) + '…';
+      x.fillText(nm, cx - 32, y0 + 82);
+      x.font = '900 64px ' + DISP; x.fillStyle = isTop ? '#5fd38a' : '#f58a8d'; x.fillText(pagFmt(p.v), cx - 32, y0 + 146);
+      var ph = '“' + phrase(isTop ? PAG_TOP : PAG_FLOP, p, i) + '”';
+      x.font = 'italic 600 19px ' + BODY; x.fillStyle = '#d4d8dc'; x.textAlign = 'center';
+      var words = ph.split(' '), line = '', lines = [];
+      words.forEach(function (wd) { var t2 = line ? line + ' ' + wd : wd; if (x.measureText(t2).width > w - 30) { lines.push(line); line = wd; } else line = t2; });
+      lines.push(line);
+      lines.slice(0, 2).forEach(function (l, k) { x.fillText(l, cx, y0 + 182 + k * 22 - (lines.length > 1 ? 10 : 0)); });
+    }
+    var cxs = [230, 600, 1000, 1370];
+    tops.forEach(function (p, i) { card(p, cxs[i], 'top', i); });
+    flops.forEach(function (p, i) { card(p, cxs[2 + i], 'flop', i); });
+    x.fillStyle = '#838c95'; x.font = '600 20px ' + BODY; x.textAlign = 'center'; x.fillText('LONEBURDEGAZZ 2.0', W / 2, 882);
+  }
+  function pagBlob() { return new Promise(function (ok) { $('#pagcanvas').toBlob(function (b) { ok(b); }, 'image/png'); }); }
+  $('#pagbox').addEventListener('toggle', function () { if ($('#pagbox').open) drawPag(); });
+  document.addEventListener('click', async function (e) {
+    var b = e.target.closest && e.target.closest('[data-pag]'); if (!b || !S.r) return;
+    var bl = await pagBlob(); if (!bl) return;
+    var fname = 'pagellone-' + S.r.date + '.png';
+    if (b.dataset.pag === 'png') {
+      var url = URL.createObjectURL(bl), an = document.createElement('a');
+      an.href = url; an.download = fname; document.body.appendChild(an); an.click();
+      setTimeout(function () { URL.revokeObjectURL(url); an.remove(); }, 1500);
+    } else { try { await navigator.share({ files: [new File([bl], fname, { type: 'image/png' })], title: 'Pagellone ' + dmy(S.r.date) }); } catch (er) {} }
+  });
+  try { var tf2 = new File([new Blob(['x'])], 'x.png', { type: 'image/png' }); if (navigator.canShare && navigator.canShare({ files: [tf2] })) $('#pagshare').hidden = false; } catch (e) {}
+
   function facesChanged() {
-    if (S.r) { renderTable(); renderAwards(); }
+    if (S.r) { renderTable(); renderAwards(); try { if ($('#pagbox').open) drawPag(); } catch (e) {} }
     renderRank();
     if (S.view === 'fazioni') renderFaz();
   }
