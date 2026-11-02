@@ -861,7 +861,13 @@ try {
       absT = sNow + dayAdd; lastAbs = absT;
 
       var m;
+      /* nuovo file di log a mappa già finita: quello che segue è un'altra mappa, anche se il file parte a partita iniziata */
+      if (body.indexOf('Log file started') === 0) {
+        if (cur && cur.over) { newMap('mappa sconosciuta', t); cur.synth = true; }
+        continue;
+      }
       if ((m = RE_STARTED.exec(body))) {
+        if (cur && cur.synth && !cur.touched) { maps.pop(); cur = maps.length ? maps[maps.length - 1] : null; }
         closeMap(cur);
         newMap(m[1], t);
         continue;
@@ -891,7 +897,7 @@ try {
         if (body.charAt(0) === '"' && !cur) { newMap('mappa sconosciuta', t); cur.synth = true; }
         else continue;
       }
-      cur.endTime = t;
+      cur.endTime = t; cur.touched = true;
       if ((m = RE_SCORED.exec(body))) { cur.scored[m[1]] = +m[2]; continue; }
       if ((m = RE_MSTATUS.exec(body))) { if (+m[1] + +m[2] > 0 || !cur.ms) cur.ms = [+m[1], +m[2]]; continue; }
       if (body.charAt(0) !== '"') continue;
@@ -960,6 +966,8 @@ try {
       mp.kills = 0;
       Object.keys(mp.players).forEach(function (k) { mp.kills += mp.players[k].kills; });
     });
+    /* via i pezzi di mappa senza nome e senza punteggio (riscaldamento prima della prima mappa, file vuoti) */
+    maps = maps.filter(function (mp) { return !(mp.synth && !mp.complete && mp.ctScore == null && mp.tScore == null && mp.ms == null && !Object.keys(mp.scored).length); });
     return { date: date, firstTime: firstTime, lastTime: lastTime, lines: used, parts: parts, maps: maps };
   }
 
@@ -1251,6 +1259,18 @@ try {
     S.swap = false; S.names = ['Squadra Blu', 'Squadra Rossa']; applySwap();
     S.source = source || 'file'; S.savedId = null; A.msg = '';
     recompute();
+    /* colori automatici: la squadra che contiene più giocatori della Rossa salvata in Fazioni diventa Rossa */
+    try {
+      if (S.source === 'file') {
+        var roster = F.init ? { r: F.red, b: F.blue } : (F.saved && F.saved.red ? { r: F.saved.red, b: F.saved.blue } : null);
+        if (roster) {
+          var rk = {}, bk = {}; resolveList(roster.r).forEach(function (p) { rk[p.k] = 1; }); resolveList(roster.b).forEach(function (p) { bk[p.k] = 1; });
+          var s0r = 0, s0b = 0;
+          S.r.players.forEach(function (p) { if (p.bot || p.squad !== 0) return; var k = canon(p.key); if (rk[k]) s0r++; else if (bk[k]) s0b++; });
+          if (s0r > s0b) { S.swap = true; S.names = ['Squadra Rossa', 'Squadra Blu']; applySwap(); }
+        }
+      }
+    } catch (e) {}
     renderAll();
     if (S.source === 'file') setView('serata');
   }
