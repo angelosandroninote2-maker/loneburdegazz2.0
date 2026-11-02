@@ -2462,8 +2462,9 @@ try {
       var E = plotEval(M, t1, t2);
       var moves = Math.min(t1.filter(function (k) { return red.indexOf(k) < 0; }).length + t2.filter(function (k) { return blue.indexOf(k) < 0; }).length,
         t1.filter(function (k) { return blue.indexOf(k) < 0; }).length + t2.filter(function (k) { return red.indexOf(k) < 0; }).length);
-      var c = w.forza / 100 * (Math.abs(E.p - 0.5) + Math.abs(E.pFull - 0.5)) + w.pres / 100 * Math.abs(E.ex1 - E.ex2) / 2 + w.punt / 100 * Math.abs(E.pu1 - E.pu2) + w.stile / 100 * E.dag / 3 + w.stab / 100 * moves * 0.05;
-      return { c: c, E: E, moves: moves };
+      /* criteri grezzi: vengono riportati sulla stessa scala dopo aver visto tutte le combinazioni */
+      var raw = { forza: Math.abs(E.p - 0.5) + Math.abs(E.pFull - 0.5), pres: Math.abs(E.ex1 - E.ex2), punt: Math.abs(E.pu1 - E.pu2), stile: E.dag, stab: moves };
+      return { raw: raw, E: E, moves: moves };
     }
     function combos(start, pick, acc) {
       if (acc.length === pick) {
@@ -2475,6 +2476,15 @@ try {
       for (var i = start; i < keys.length; i++) { acc.push(keys[i]); combos(i + 1, pick, acc); acc.pop(); }
     }
     combos(0, half, []);
+    /* scale fisse: 1 punto di costo =
+       forza: squilibrio di 5 punti percentuali (cresce al quadrato: 60-40 costa molto più di 52-48)
+       presenze: mezza presenza attesa di differenza · puntualità: 15 punti di differenza
+       stile: 1,5 di differenza di aggressività · cambiare poco: 4 spostamenti */
+    sols.forEach(function (s) {
+      var r = s.raw;
+      var f = { forza: Math.pow(r.forza / 0.10, 2), pres: r.pres / 0.5, punt: r.punt / 0.15, stile: r.stile / 1.5, stab: r.stab / 4 };
+      s.c = Object.keys(f).reduce(function (a, c) { return a + w[c] / 100 * f[c]; }, 0);
+    });
     sols.sort(function (a, b) { return a.c - b.c; });
     /* orientamento: la squadra che somiglia di più all'attuale Rossa resta Rossa */
     sols.forEach(function (s) {
@@ -2562,7 +2572,10 @@ try {
   });
   document.addEventListener('input', function (e) {
     var s = e.target.closest && e.target.closest('[data-pw]');
-    if (s) { PL.w[s.dataset.pw] = +s.value; s.nextElementSibling.textContent = s.value; }
+    if (s) {
+      PL.w[s.dataset.pw] = +s.value; s.nextElementSibling.textContent = s.value;
+      if (PL.res && !PL.res.err) { clearTimeout(PL.tm); PL.tm = setTimeout(function () { plotRun(); renderPlot(); }, 200); }
+    }
   });
   document.addEventListener('click', function (e) {
     var b = e.target.closest && e.target.closest('[data-plot]'); if (!b) return;
