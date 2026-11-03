@@ -363,6 +363,31 @@ tr.picked td { background: var(--bg); }
 .plsl b { font-family: var(--f-mono); font-size: 12px; text-align: right; }
 .plchk { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--bg); padding: 4px 8px 4px 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
 .plchk.off { opacity: .45; }
+.pnbtn { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+.pnbtn:hover .pnn, .pnbtn:focus-visible .pnn { text-decoration: underline; }
+.pnbtn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+dialog.pst { border: 1px solid var(--line); background: var(--surface); color: var(--ink); padding: 0; width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow: auto; }
+dialog.pst::backdrop { background: rgba(10, 12, 15, .55); }
+.pst .ph { display: flex; align-items: center; gap: 12px; padding: 16px 18px 12px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--surface); }
+.pst .ph h3 { font-family: var(--f-display); font-size: 30px; font-weight: 900; text-transform: uppercase; line-height: 1; }
+.pst .ph .meta { display: block; margin-top: 4px; }
+.pst .ph .x { margin-left: auto; align-self: flex-start; }
+.pst .ph > div { flex: 1; min-width: 0; }
+.pst .ph h3 { overflow-wrap: anywhere; }
+.pst .ph .x { flex-shrink: 0; }
+@media (max-width: 520px) { .pst .ph h3 { font-size: 24px; } .pst .ph .av.big { width: 48px; height: 48px; } .pst .pb, .pst .ph { padding-left: 14px; padding-right: 14px; } }
+.pst .pb { padding: 12px 18px 18px; display: grid; gap: 14px; }
+.pst h4 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 6px; }
+.pst .sg { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px; }
+.pst .sv { background: var(--bg); border: 1px solid var(--line); padding: 8px 10px; }
+.pst .sv b { display: block; font-family: var(--f-display); font-size: 26px; font-weight: 900; line-height: 1.05; }
+.pst .sv span { font-size: 12px; color: var(--muted); }
+.pst .bar { height: 8px; background: var(--bg); border: 1px solid var(--line); margin-top: 6px; }
+.pst .bar i { display: block; height: 100%; background: var(--ink2); }
+.pst .row { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; padding: 4px 0; border-bottom: 1px dashed var(--line); }
+.pst .row:last-child { border-bottom: 0; }
+.pst .row .num { font-family: var(--f-mono); font-size: 13px; }
+.pst .note { font-size: 12px; }
 .plmode { display: inline-flex; border: 1px solid var(--line); margin-bottom: 14px; }
 .plmode button { font: inherit; font-size: 13px; font-weight: 700; padding: 6px 12px; border: 0; background: var(--bg); color: var(--muted); cursor: pointer; }
 .plmode button + button { border-left: 1px solid var(--line); }
@@ -532,6 +557,7 @@ table.ptab tr.psep td { background: var(--ink); color: var(--bg); text-align: le
           <div id="plotres"></div>
           <h4 class="plh" style="margin-top:18px">Voti del Plotonometro</h4>
           <div class="tablewrap" id="plotvoti"></div>
+          <dialog id="pstdlg" class="pst" aria-labelledby="psttitle"><div id="pstbody"></div></dialog>
         </div>
       </details>
       <div class="fzprev"><canvas id="fzcanvas" width="1600" height="900" aria-label="Anteprima dell’infografica delle fazioni"></canvas></div>
@@ -2575,6 +2601,83 @@ try {
       '<div class="plteams">' + plotTeamHtml(M, s.t1, true, { ex: E.ex1, pu: E.pu1 }) + plotTeamHtml(M, s.t2, false, { ex: E.ex2, pu: E.pu2 }) + '</div>' +
       (idx >= 0 ? '<div style="margin-top:10px"><button type="button" class="btn ghost sm" data-plot="apply" data-i="' + idx + '">Usa queste squadre</button></div>' : '') + '</div>';
   }
+  /* ---- scheda statistiche medie (dal 22/06) ---- */
+  async function plotDetails(docs) {
+    PL.det = PL.det || {};
+    await Promise.all(docs.map(async function (d) {
+      if (PL.det[d.id] !== undefined) return;
+      try { var sn = await A.db.doc('dettagli/' + d.id).get(); PL.det[d.id] = sn.exists ? sn.data() : null; } catch (e) { PL.det[d.id] = null; }
+    }));
+  }
+  function secOf(t) { var a = String(t || '').split(':'); return a.length < 2 ? null : (+a[0]) * 3600 + (+a[1]) * 60 + (+a[2] || 0); }
+  function plotAgg(M) {
+    var G = {};
+    function g(k, n) { return G[k] || (G[k] = { k: k, n: n, ev: 0, evw: 0, evd: 0, m: 0, mw: 0, K: 0, D: 0, A: 0, H: 0, Kh: 0, Dh: 0, mh: 0, dm: 0, sec: 0, camp: 0, nades: 0, mol: 0, wb: 0, dom: 0, rev: 0, best: 0, tk: 0, w: {}, v: {}, x: {} }); }
+    M.docs.forEach(function (d) {
+      (d.players || []).forEach(function (p) {
+        var a = g(p.k, p.n); a.n = p.n; a.ev++; a.m += p.m || 0; a.mw += p.mw || 0; a.K += p.K || 0; a.D += p.D || 0; a.A += p.A || 0; a.H += p.H || 0;
+        if (p.ev != null) { a.evd++; if (p.ev) a.evw++; }
+        if (p.Kh != null) { a.Kh += p.Kh; a.Dh += p.Dh || 0; a.mh += p.m || 0; }
+      });
+      var det = PL.det && PL.det[d.id];
+      if (!det) return;
+      det.maps.forEach(function (mp) {
+        var dur = (function () { var x = secOf(mp.startTime), y = secOf(mp.endTime); if (x == null || y == null) return 0; if (y < x) y += 86400; return y - x; })();
+        mp.players.forEach(function (o) {
+          if (o.b || !G[o.k]) return;
+          var a = G[o.k], sec = (o.sc || 0) + (o.st || 0) || dur;
+          a.dm++; a.sec += sec; a.camp += o.campers || 0; a.nades += o.nades || 0; a.mol += o.molotovs || 0; a.wb += o.wb || 0; a.dom += o.dom || 0; a.rev += o.rev || 0; a.tk += o.tk || 0;
+          if ((o.best || 0) > a.best) a.best = o.best;
+          (o.w || []).forEach(function (x) { a.w[x[0]] = (a.w[x[0]] || 0) + x[1]; });
+          (o.v || []).forEach(function (x) { if (String(x[0]).indexOf('BOT:') !== 0) a.v[x[0]] = (a.v[x[0]] || 0) + x[1]; });
+          (o.x || []).forEach(function (x) { if (String(x[0]).indexOf('BOT:') !== 0 && x[0] !== o.k) a.x[x[0]] = (a.x[x[0]] || 0) + x[1]; });
+        });
+      });
+    });
+    Object.keys(G).forEach(function (k) { var a = G[k]; a.campRate = a.sec > 60 ? a.camp / (a.sec / 600) : null; });
+    return G;
+  }
+  async function openPst(k) {
+    var dlg = $('#pstdlg'), body = $('#pstbody'); if (!dlg) return;
+    var M = plotModel(), a0 = M.by[k];
+    body.innerHTML = '<div class="ph"><h3 id="psttitle">' + esc(a0 ? a0.n : k) + '</h3><button type="button" class="btn ghost sm x" data-pstx>Chiudi</button></div><div class="pb"><p class="note">Carico le statistiche…</p></div>';
+    try { dlg.showModal(); } catch (e) { dlg.setAttribute('open', ''); }
+    await plotDetails(M.docs);
+    var G = plotAgg(M), a = G[k];
+    if (!a) { body.querySelector('.pb').innerHTML = '<p class="note">Nessuna battaglia dal ' + dmy(RULES_SINCE) + ' per questo giocatore.</p>'; return; }
+    var m = Math.max(a.m, 1), nm = function (x) { return G[x] ? G[x].n : (M.by[x] ? M.by[x].n : String(x).replace(/^NAME:/, '')); };
+    var f1 = function (v) { return v.toFixed(1).replace('.', ','); }, pc = function (v) { return Math.round(v * 100) + '%'; };
+    function box(v, l) { return '<div class="sv"><b>' + v + '</b><span>' + l + '</span></div>'; }
+    function top(o) { var ks = Object.keys(o).sort(function (x, y) { return o[y] - o[x]; }); return ks.length ? ks[0] : null; }
+    /* quanto è statico: avvisi anticamping ogni 10 minuti, confrontati col gruppo */
+    var act = Object.keys(G).map(function (x) { return G[x]; }).filter(function (b) { return b.campRate != null && b.ev >= 2; }).sort(function (x, y) { return y.campRate - x.campRate; });
+    var rk = act.indexOf(a), mxR = act.length ? act[0].campRate : 0;
+    var stat = a.campRate == null ? '<p class="note">Servono i dettagli delle battaglie per calcolarlo.</p>' :
+      '<div class="sg">' + box(f1(a.campRate), 'avvisi anticamping ogni 10 min') + box(f1(a.camp / Math.max(a.dm, 1)), 'avvisi per mappa') + (rk >= 0 ? box(rk === 0 ? 'Il più fermo' : rk === act.length - 1 ? 'Il più mobile' : (rk + 1) + '° su ' + act.length, rk === 0 || rk === act.length - 1 ? 'del gruppo' : 'tra i più fermi del gruppo') : '') + '</div>' +
+      '<div class="bar" title="0 = il più mobile, pieno = il più statico"><i style="width:' + (mxR ? Math.round(100 * a.campRate / mxR) : 0) + '%"></i></div>';
+    var wk = Object.keys(a.w).sort(function (x, y) { return a.w[y] - a.w[x]; }).slice(0, 3), wt = Object.keys(a.w).reduce(function (s2, x) { return s2 + a.w[x]; }, 0) || 1;
+    var vic = top(a.v), kil = top(a.x), dm = Math.max(a.dm, 1);
+    var ab = M.by[k];
+    body.innerHTML = '<div class="ph">' + avHtml(k, a.n, 'sqn', { big: true }) + '<div><h3 id="psttitle">' + esc(a.n) + '</h3><span class="meta">' + plural(a.ev, 'serata', 'serate') + ' · ' + plural(a.m, 'mappa', 'mappe') + ' dal ' + dmy(RULES_SINCE) + (ab && ab.voto != null ? ' · forza ' + ab.voto + ' · ' + esc(ab.stile) : '') + '</span></div><button type="button" class="btn ghost sm x" data-pstx>Chiudi</button></div>' +
+      '<div class="pb">' +
+      '<section><h4>Media per mappa</h4><div class="sg">' + box(f1(a.K / m), 'kill') + box(f1(a.D / m), 'morti') + box(f1(a.A / m), 'assist') + box(f1(a.K / Math.max(a.D, 1)), 'kill per morte') + '</div></section>' +
+      '<section><h4>Solo contro umani (per mappa)</h4>' + (a.mh ? '<div class="sg">' + box(f1(a.Kh / a.mh), 'kill su umani') + box(f1(a.Dh / a.mh), 'morti da umani') + box(f1(a.Kh / Math.max(a.Dh, 1)), 'kill per morte') + box(pc(a.Kh / Math.max(a.K, 1)), 'delle kill su umani') + '</div>' : '<p class="note">Dati non ancora presenti: importa il file di aggiornamento dalla pagina Archivio.</p>') + '</section>' +
+      '<section><h4>Mira</h4><div class="sg">' + box(pc(a.H / Math.max(a.K, 1)), 'headshot') + (a.dm ? box(f1(a.wb / dm), 'kill attraverso i muri per mappa') : '') + (a.best ? box(a.best, 'serie record senza morire') : '') + '</div></section>' +
+      '<section><h4>Quanto è statico</h4>' + stat + '</section>' +
+      '<section><h4>Squadra</h4><div class="sg">' + box(pc(a.mw / m), 'mappe vinte') + (a.evd ? box(a.evw + ' su ' + a.evd, 'serate vinte') : '') + (a.dm ? box(f1(a.nades / dm), 'granate lanciate per mappa') : '') + '</div></section>' +
+      (wk.length || vic || kil ? '<section><h4>Armi e avversari</h4>' +
+        wk.map(function (w) { return '<div class="row"><span>' + esc(L.weaponName(w)) + '</span><span class="num">' + pc(a.w[w] / wt) + ' delle kill</span></div>'; }).join('') +
+        (vic ? '<div class="row"><span>Vittima preferita</span><span><b>' + esc(nm(vic)) + '</b> <span class="num">' + a.v[vic] + ' kill</span></span></div>' : '') +
+        (kil ? '<div class="row"><span>Bestia nera</span><span><b>' + esc(nm(kil)) + '</b> <span class="num">' + a.x[kil] + ' morti</span></span></div>' : '') + '</section>' : '') +
+      '<p class="note">Medie sulle battaglie in archivio dal ' + dmy(RULES_SINCE) + '. “Quanto è statico” conta gli avvisi anticamping del server ogni 10 minuti giocati. La precisione dei colpi non c’è: i log del server non registrano i colpi sparati.</p>' +
+      '</div>';
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-plst]');
+    if (b) { openPst(b.dataset.plst); return; }
+    if (e.target.closest && e.target.closest('[data-pstx]')) { var d = $('#pstdlg'); try { d.close(); } catch (er) { d.removeAttribute('open'); } return; }
+    if (e.target && e.target.id === 'pstdlg') { try { e.target.close(); } catch (er) {} }
+  });
   function fx(v) { return v == null ? '–' : (v > 0 ? '+' : '') + v.toFixed(1); }
   function renderPlot() {
     var M = plotModel();
@@ -2593,8 +2696,8 @@ try {
     else box.innerHTML = '<div class="plres">' + (R.cur ? plotCard(R.M, R.cur, 'Squadre attuali', -1) : '') + R.top.map(function (s, i) { return plotCard(R.M, s, 'Proposta ' + (i + 1), i); }).join('') + '</div><p class="note" style="margin-top:8px">Combinazioni provate: ' + R.n + '. La percentuale tiene conto di quanto spesso ognuno è presente.</p>';
     var rows = M.list.slice().sort(function (a, b) { return (b.forza == null ? -999 : b.forza) - (a.forza == null ? -999 : a.forza); });
     $('#plotvoti').innerHTML = rows.length ? '<table class="stab"><thead><tr><th class="l">Giocatore</th><th>Serate</th><th>Forza</th><th>Kill–morti per mappa</th><th>Solo contro umani</th><th>Presenze</th><th>Puntuale</th><th>HS %</th><th class="l">Stile</th></tr></thead><tbody>' +
-      rows.map(function (a) { return '<tr><td class="l"><span style="display:inline-flex;align-items:center;gap:8px;font-weight:600">' + avHtml(a.k, a.n, 'sqn') + esc(a.n) + '</span></td><td>' + a.ev + '</td><td><b>' + (a.voto == null ? '–' : a.voto) + '</b></td><td' + (PL.mode === 'tutti' ? ' style="font-weight:700"' : '') + '>' + fx(a.forzaT) + '</td><td' + (PL.mode === 'umani' ? ' style="font-weight:700"' : '') + '>' + fx(a.forzaU) + '</td><td>' + Math.round(a.pres * 100) + '%</td><td>' + Math.round(a.punt * 100) + '%</td><td>' + Math.round(a.hs * 100) + '%</td><td class="l">' + a.stile + '</td></tr>'; }).join('') + '</tbody></table>' +
-      '<p class="note" style="margin-top:8px">Forza: 0 = il più basso del gruppo, 100 = il più alto, calcolata ' + modeName(PL.mode) + ', con più peso alle serate recenti. Con meno di 2 serate il voto è provvisorio. In grassetto la colonna usata.</p>' : '<div class="empty">Nessuna battaglia dal ' + dmy(RULES_SINCE) + ' in archivio.</div>';
+      rows.map(function (a) { return '<tr><td class="l"><button type="button" class="pnbtn" data-plst="' + esc(a.k) + '" title="Statistiche medie di ' + esc(a.n) + '">' + avHtml(a.k, a.n, 'sqn') + '<span class="pnn">' + esc(a.n) + '</span></button></td><td>' + a.ev + '</td><td><b>' + (a.voto == null ? '–' : a.voto) + '</b></td><td' + (PL.mode === 'tutti' ? ' style="font-weight:700"' : '') + '>' + fx(a.forzaT) + '</td><td' + (PL.mode === 'umani' ? ' style="font-weight:700"' : '') + '>' + fx(a.forzaU) + '</td><td>' + Math.round(a.pres * 100) + '%</td><td>' + Math.round(a.punt * 100) + '%</td><td>' + Math.round(a.hs * 100) + '%</td><td class="l">' + a.stile + '</td></tr>'; }).join('') + '</tbody></table>' +
+      '<p class="note" style="margin-top:8px">Forza: 0 = il più basso del gruppo, 100 = il più alto, calcolata ' + modeName(PL.mode) + ', con più peso alle serate recenti. Con meno di 2 serate il voto è provvisorio. In grassetto la colonna usata. Clicca un nome per le sue statistiche medie.</p>' : '<div class="empty">Nessuna battaglia dal ' + dmy(RULES_SINCE) + ' in archivio.</div>';
   }
   function plotPdfHtml() {
     if (!PL.res || PL.res.err) plotRun();
