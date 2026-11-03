@@ -363,6 +363,11 @@ tr.picked td { background: var(--bg); }
 .plsl b { font-family: var(--f-mono); font-size: 12px; text-align: right; }
 .plchk { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--bg); padding: 4px 8px 4px 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
 .plchk.off { opacity: .45; }
+.plmode { display: inline-flex; border: 1px solid var(--line); margin-bottom: 14px; }
+.plmode button { font: inherit; font-size: 13px; font-weight: 700; padding: 6px 12px; border: 0; background: var(--bg); color: var(--muted); cursor: pointer; }
+.plmode button + button { border-left: 1px solid var(--line); }
+.plmode button.on { background: var(--ink, #111); color: var(--bg); }
+.plcard .alt { display: block; width: 100%; font-size: 13px; color: var(--muted); }
 .plres { display: grid; gap: 12px; }
 .plcard { border: 1px solid var(--line); background: var(--bg); padding: 12px 14px; }
 .plcard.cur { border-style: dashed; }
@@ -507,6 +512,11 @@ table.ptab tr.psep td { background: var(--ink); color: var(--bg); text-align: le
               <div class="fzlist" id="plotwho"></div>
             </div>
             <div>
+              <h4 class="plh">Forza calcolata</h4>
+              <div class="plmode" role="group" aria-label="Come calcolare la forza">
+                <button type="button" data-plmode="tutti">Con i bot</button>
+                <button type="button" data-plmode="umani">Solo contro umani</button>
+              </div>
               <h4 class="plh">Quanto conta</h4>
               <div class="plsl">
                 <label>Forza <input type="range" min="0" max="100" value="100" data-pw="forza"><b></b></label>
@@ -807,7 +817,7 @@ try {
           key: w.key, name: w.name, bot: w.bot, team: null,
           kills: 0, deaths: 0, assists: 0, flashAssists: 0, hs: 0, wb: 0, dom: 0, rev: 0,
           suicides: 0, tk: 0, chicken: 0, molotovs: 0, nades: 0, campers: 0,
-          streak: 0, best: 0, weapons: {}, victims: {}, killers: {}
+          kh: 0, dh: 0, streak: 0, best: 0, weapons: {}, victims: {}, killers: {}
         };
       }
       p.name = w.name;
@@ -914,9 +924,11 @@ try {
         pv.streak = 0;
         if (a.key === v.key) { cur.sui.push({ w: a, t: t, weapon: m[9] }); pa.deaths--; pv.deaths++; pv.deaths--; continue; }
         pv.deaths++;
+        if (!a.bot) pv.dh++;          /* morti causate da un umano */
         inc(pv.killers, a.key);
         if (a.team && a.team === v.team) { pa.tk++; continue; }
         pa.kills++;
+        if (!v.bot) pa.kh++;          /* kill su un umano */
         if (++pa.streak > pa.best) pa.best = pa.streak;
         inc(pa.weapons, m[9]);
         inc(pa.victims, v.key);
@@ -973,7 +985,7 @@ try {
 
   /* ---------- Fase 2: squadre, vincitori, classifiche ---------- */
   var SUM = ['kills', 'deaths', 'assists', 'flashAssists', 'hs', 'wb', 'dom', 'rev', 'suicides', 'tk',
-    'chicken', 'molotovs', 'nades', 'campers'];
+    'chicken', 'molotovs', 'nades', 'campers', 'kh', 'dh'];
 
   function analyze(parsed, opts) {
     opts = opts || {};
@@ -1176,7 +1188,7 @@ try {
       }),
       players: r.players.filter(function (p) { return !p.bot; }).map(function (p) {
         return { k: p.key, n: p.name, sq: p.squad, m: p.maps, mw: p.mapsWon, K: p.kills, D: p.deaths,
-          A: p.assists, H: p.hs, ev: e.winner == null || p.squad == null ? null : (p.squad === e.winner ? 1 : 0) };
+          A: p.assists, H: p.hs, Kh: p.kh, Dh: p.dh, ev: e.winner == null || p.squad == null ? null : (p.squad === e.winner ? 1 : 0) };
       })
     };
     return { id: id, summary: summary, detail: detail };
@@ -1932,6 +1944,23 @@ try {
     A.busy = true; A.msg = 'Importo…'; renderArchive();
     try {
       var j = JSON.parse(await file.text());
+      if (j && j.format === 'lettore-log-aggiornamento' && Array.isArray(j.items)) {
+        var nu = 0, cur = (A.docs || []).slice();
+        for (var q = 0; q < j.items.length; q++) {
+          var it = j.items[q]; if (!it || !it.date || !it.p) continue;
+          var ds = cur.filter(function (d) { return d.date === it.date; });
+          for (var z = 0; z < ds.length; z++) {
+            var nd = JSON.parse(JSON.stringify(ds[z])), ch = 0;
+            (nd.players || []).forEach(function (p) {
+              var v = it.p[p.k] || (it.n && it.n[String(p.n || '').toLowerCase()]);
+              if (v && Array.isArray(v) && v.length === 2) { p.Kh = +v[0] || 0; p.Dh = +v[1] || 0; ch++; }
+            });
+            if (ch) { await A.db.doc('battaglie/' + nd.id).set(nd); nu++; }
+          }
+        }
+        A.msg = nu ? 'Aggiornate ' + plural(nu, 'battaglia', 'battaglie') + ' con le kill contro umani.' : 'Nessuna battaglia dell’archivio corrisponde al file di aggiornamento.';
+        A.busy = false; renderArchive(); return;
+      }
       if (!j || j.format !== 'lettore-log-archivio' || !Array.isArray(j.docs)) throw { code: 'formato' };
       var ok = j.docs.filter(function (d) { return d && (/^(battaglie|dettagli)\/\d{8}-\d{4}$/.test(d.path) || (/^volti\/[A-Za-z0-9_]{1,80}$/.test(d.path) && d.data && typeof d.data.img === 'string' && d.data.img.indexOf('data:image/') === 0)) && d.data && d.data.v === 1; });
       ok.sort(function (x, y) { return x.path < y.path ? -1 : 1; }); /* dettagli prima di battaglie */
@@ -2433,21 +2462,28 @@ try {
 
   /* ---------- PLOTONOMETRO ---------- */
   var RULES_SINCE = '2026-06-22';      /* divieto di AWP, SCAR-20 e G3SG1 */
-  var PL = { HUM: 13.6, B: 0.072, DEC: 0.85, off: {}, res: null, w: { forza: 100, pres: 30, punt: 10, stile: 10, stab: 0 } };
-  function plotModel() {
+  /* costanti tarate sulle mappe dal 22/06: con i bot (kill e morti totali) e solo contro umani */
+  var PLC = { tutti: { HUM: 13.6, B: 0.072 }, umani: { HUM: 18, B: 0.084 } };
+  var PL = { mode: 'tutti', HUM: 13.6, B: 0.072, DEC: 0.85, off: {}, res: null, w: { forza: 100, pres: 30, punt: 10, stile: 10, stab: 0 } };
+  function hasHum(d) { return (d.players || []).some(function (p) { return p.Kh != null; }); }
+  function plotModel(mode) {
+    mode = mode || PL.mode;
     var docs = (A.docs || []).filter(function (d) { return d.date >= RULES_SINCE; }).sort(function (a, b) { return a.ts - b.ts; });
-    var n = docs.length, P = {};
+    var n = docs.length, P = {}, nH = docs.filter(hasHum).length;
     docs.forEach(function (d, i) {
       var wgt = Math.pow(PL.DEC, n - 1 - i);
       (d.players || []).forEach(function (p) {
-        var a = P[p.k] || (P[p.k] = { k: p.k, n: p.n, ev: 0, ws: 0, s: 0, m: 0, K: 0, D: 0, A: 0, H: 0, pv: 0, pt: 0 });
+        var a = P[p.k] || (P[p.k] = { k: p.k, n: p.n, ev: 0, ws: 0, s: 0, wsT: 0, sT: 0, wsU: 0, sU: 0, m: 0, K: 0, D: 0, A: 0, H: 0, pv: 0, pt: 0 });
         a.n = p.n; a.ev++;
-        if (p.m) { a.ws += wgt * p.m; a.s += wgt * (p.K - p.D); }
+        if (p.m) {
+          a.wsT += wgt * p.m; a.sT += wgt * (p.K - p.D);
+          if (p.Kh != null) { a.wsU += wgt * p.m; a.sU += wgt * ((p.Kh || 0) - (p.Dh || 0)); }
+        }
         a.m += p.m; a.K += p.K; a.D += p.D; a.A += p.A; a.H += p.H;
         var e = d.pres && d.pres.p[p.k]; if (e) { a.pt++; if (e.c === 'v') a.pv++; }
       });
     });
-    var list = Object.keys(P).map(function (k) { var a = P[k]; a.forza = a.ws ? a.s / a.ws : null; a.pres = n ? a.ev / n : 0; a.punt = a.pt ? a.pv / a.pt : 0.75; var m = Math.max(a.m, 1); a.agg = (a.K + a.D) / m; a.hs = a.H / Math.max(a.K, 1); a.sup = a.A / m; return a; });
+    var list = Object.keys(P).map(function (k) { var a = P[k]; a.forzaT = a.wsT ? a.sT / a.wsT : null; a.forzaU = a.wsU ? a.sU / a.wsU : null; a.forza = mode === 'umani' ? a.forzaU : a.forzaT; a.pres = n ? a.ev / n : 0; a.punt = a.pt ? a.pv / a.pt : 0.75; var m = Math.max(a.m, 1); a.agg = (a.K + a.D) / m; a.hs = a.H / Math.max(a.K, 1); a.sup = a.A / m; return a; });
     var act = list.filter(function (a) { return a.ev >= 2; });
     function z(f) { var v = act.map(function (a) { return a[f]; }), mu = v.reduce(function (x, y) { return x + y; }, 0) / (v.length || 1), sd = Math.sqrt(v.reduce(function (x, y) { return x + (y - mu) * (y - mu); }, 0) / (v.length || 1)) || 1; list.forEach(function (a) { a['z_' + f] = (a[f] - mu) / sd; }); }
     ['agg', 'hs', 'sup'].forEach(z);
@@ -2455,7 +2491,7 @@ try {
     var fs = act.map(function (a) { return a.forza; }).filter(function (x) { return x != null; });
     var mn = Math.min.apply(null, fs), mx = Math.max.apply(null, fs), avg = fs.length ? fs.reduce(function (x, y) { return x + y; }, 0) / fs.length : 0;
     var by = {}; list.forEach(function (a) { a.voto = a.forza == null || mx === mn ? null : Math.round(100 * (a.forza - mn) / (mx - mn)); by[a.k] = a; });
-    return { docs: docs, by: by, list: list, avg: avg };
+    return { docs: docs, by: by, list: list, avg: avg, mode: mode, nH: nH, C: PLC[mode] };
   }
   function plotPlayers() {
     var team = resolveList(F.red.concat(F.blue)), bench = resolveList(F.bench);
@@ -2464,9 +2500,10 @@ try {
   function plotEval(M, t1, t2) {
     function f(k) { var a = M.by[k]; return a && a.forza != null && a.ev >= 2 ? a.forza : M.avg * 0.8; }
     function pr(k) { var a = M.by[k]; return a ? Math.max(a.pres, 0.3) : 0.6; }
-    function st(t, usePres) { return t.reduce(function (s, k) { return s + (usePres ? pr(k) : 1) * (f(k) + PL.HUM); }, 0); }
-    var p = 1 / (1 + Math.exp(-PL.B * (st(t1, true) - st(t2, true))));
-    var pFull = 1 / (1 + Math.exp(-PL.B * (st(t1, false) - st(t2, false))));
+    var C = M.C || PLC.tutti;
+    function st(t, usePres) { return t.reduce(function (s, k) { return s + (usePres ? pr(k) : 1) * (f(k) + C.HUM); }, 0); }
+    var p = 1 / (1 + Math.exp(-C.B * (st(t1, true) - st(t2, true))));
+    var pFull = 1 / (1 + Math.exp(-C.B * (st(t1, false) - st(t2, false))));
     function sum(t, fn) { return t.reduce(function (s, k) { return s + fn(k); }, 0); }
     var ex1 = sum(t1, pr), ex2 = sum(t2, pr);
     var pu = function (k) { var a = M.by[k]; return a ? a.punt : 0.75; }, ag = function (k) { var a = M.by[k]; return a && a.z_agg != null ? a.z_agg : 0; };
@@ -2476,6 +2513,7 @@ try {
     var M = plotModel(), who = plotPlayers().filter(function (p) { return !PL.off[p.k] && !(p.bench && PL.off[p.k] !== false); });
     var keys = who.map(function (p) { return p.k; }), n = keys.length;
     if (n < 2) { PL.res = { err: 'Scegli almeno 2 giocatori.' }; return; }
+    if (M.mode === 'umani' && !M.nH) { PL.res = { err: 'Le battaglie in archivio non hanno ancora le kill contro umani. Importa il file di aggiornamento (pulsante “Importa archivio” nella pagina Archivio) oppure scegli “Con i bot”.' }; return; }
     var red = resolveList(F.red).map(function (p) { return p.k; }), blue = resolveList(F.blue).map(function (p) { return p.k; });
     var w = PL.w, half = Math.floor(n / 2), seen = {}, sols = [];
     function cost(t1, t2) {
@@ -2513,23 +2551,36 @@ try {
       if (swapR > keepR) { var tmp = s.t1; s.t1 = s.t2; s.t2 = tmp; s.E = plotEval(M, s.t1, s.t2); }
     });
     var curK = keys.filter(function (k) { return red.indexOf(k) >= 0; }), curB = keys.filter(function (k) { return blue.indexOf(k) >= 0; });
-    PL.res = { M: M, top: sols.slice(0, 3), cur: curK.length && curB.length ? { t1: curK, t2: curB, E: plotEval(M, curK, curB) } : null, n: sols.length };
+    var cur = curK.length && curB.length ? { t1: curK, t2: curB, E: plotEval(M, curK, curB) } : null, top = sols.slice(0, 3);
+    /* confronto: le stesse squadre calcolate con l'altro modo */
+    var altMode = M.mode === 'umani' ? 'tutti' : 'umani', Ma = plotModel(altMode);
+    if (altMode === 'tutti' || Ma.nH) top.concat(cur ? [cur] : []).forEach(function (s) { s.Ea = plotEval(Ma, s.t1, s.t2); });
+    PL.res = { M: M, top: top, cur: cur, n: sols.length, alt: altMode };
   }
   function plotTeamHtml(M, t, red, E1) {
     var nm = function (k) { var a = M.by[k]; return a ? a.n : (plotPlayers().filter(function (p) { return p.k === k; })[0] || { n: k }).n; };
     return '<div class="plteam' + (red ? '' : ' b') + '"><div class="who2">' + t.map(function (k) { var a = M.by[k]; return esc(nm(k)) + (a && a.voto != null ? ' <span class="meta">(' + a.voto + ')</span>' : ''); }).join(', ') + '</div>' +
       '<div class="meta">' + (red ? 'Squadra Rossa' : 'Squadra Blu') + ' · ' + plural(t.length, 'giocatore', 'giocatori') + ' · presenze attese ' + E1.ex.toFixed(1) + ' · puntualità ' + Math.round(E1.pu * 100) + '%</div></div>';
   }
+  function modeName(m) { return m === 'umani' ? 'solo contro umani' : 'con i bot'; }
+  function altTxt(s, M) {
+    if (!s.Ea) return '';
+    var a = Math.round(s.Ea.p * 100);
+    return '<span class="alt">Calcolata ' + modeName(M.mode === 'umani' ? 'tutti' : 'umani') + ': ' + a + '% – ' + (100 - a) + '%</span>';
+  }
   function plotCard(M, s, title, idx) {
     var E = s.E, pr = Math.round(E.p * 100);
-    return '<div class="plcard' + (idx < 0 ? ' cur' : '') + '"><h5><span>' + title + '</span><span class="pct">' + pr + '% – ' + (100 - pr) + '%</span><span class="meta">a ranghi completi ' + Math.round(E.pFull * 100) + '% – ' + (100 - Math.round(E.pFull * 100)) + '%' + (s.moves != null ? ' · ' + plural(s.moves, 'spostamento', 'spostamenti') + ' rispetto ad ora' : '') + '</span></h5>' +
+    return '<div class="plcard' + (idx < 0 ? ' cur' : '') + '"><h5><span>' + title + '</span><span class="pct">' + pr + '% – ' + (100 - pr) + '%</span><span class="meta">a ranghi completi ' + Math.round(E.pFull * 100) + '% – ' + (100 - Math.round(E.pFull * 100)) + '%' + (s.moves != null ? ' · ' + plural(s.moves, 'spostamento', 'spostamenti') + ' rispetto ad ora' : '') + '</span>' + altTxt(s, M) + '</h5>' +
       '<div class="plbar"><i class="r" style="width:' + pr + '%"></i><i class="b" style="width:' + (100 - pr) + '%"></i></div>' +
       '<div class="plteams">' + plotTeamHtml(M, s.t1, true, { ex: E.ex1, pu: E.pu1 }) + plotTeamHtml(M, s.t2, false, { ex: E.ex2, pu: E.pu2 }) + '</div>' +
       (idx >= 0 ? '<div style="margin-top:10px"><button type="button" class="btn ghost sm" data-plot="apply" data-i="' + idx + '">Usa queste squadre</button></div>' : '') + '</div>';
   }
+  function fx(v) { return v == null ? '–' : (v > 0 ? '+' : '') + v.toFixed(1); }
   function renderPlot() {
     var M = plotModel();
-    $('#plotnote').innerHTML = 'Il Plotonometro usa le battaglie in archivio dal <b>' + dmy(RULES_SINCE) + '</b> (divieto di AWP, SCAR-20 e G3SG1): ora sono <b>' + M.docs.length + '</b>. Ogni serata che salvi entra nel calcolo. Conta soprattutto avere lo stesso numero di giocatori: un giocatore in più vale molto più della bravura.';
+    $('#plotnote').innerHTML = 'Il Plotonometro usa le battaglie in archivio dal <b>' + dmy(RULES_SINCE) + '</b> (divieto di AWP, SCAR-20 e G3SG1): ora sono <b>' + M.docs.length + '</b>. Ogni serata che salvi entra nel calcolo. Conta soprattutto avere lo stesso numero di giocatori: un giocatore in più vale molto più della bravura.' +
+      (PL.mode === 'umani' ? ' <b>Forza solo contro umani:</b> contano soltanto le kill fatte ai giocatori veri e le morti causate da loro; i bot non contano.' + (M.nH < M.docs.length ? ' Ci sono questi dati in <b>' + M.nH + ' serate su ' + M.docs.length + '</b>: per le altre importa il file di aggiornamento dalla pagina Archivio.' : '') : '');
+    Array.prototype.forEach.call(document.querySelectorAll('[data-plmode]'), function (b) { b.classList.toggle('on', b.dataset.plmode === PL.mode); b.setAttribute('aria-pressed', b.dataset.plmode === PL.mode ? 'true' : 'false'); });
     var who = plotPlayers();
     $('#plotwho').innerHTML = who.map(function (p) {
       var on = p.bench ? PL.off[p.k] === false : !PL.off[p.k], a = M.by[p.k];
@@ -2541,9 +2592,9 @@ try {
     else if (R.err) box.innerHTML = '<p class="note">' + esc(R.err) + '</p>';
     else box.innerHTML = '<div class="plres">' + (R.cur ? plotCard(R.M, R.cur, 'Squadre attuali', -1) : '') + R.top.map(function (s, i) { return plotCard(R.M, s, 'Proposta ' + (i + 1), i); }).join('') + '</div><p class="note" style="margin-top:8px">Combinazioni provate: ' + R.n + '. La percentuale tiene conto di quanto spesso ognuno è presente.</p>';
     var rows = M.list.slice().sort(function (a, b) { return (b.forza == null ? -999 : b.forza) - (a.forza == null ? -999 : a.forza); });
-    $('#plotvoti').innerHTML = rows.length ? '<table class="stab"><thead><tr><th class="l">Giocatore</th><th>Serate</th><th>Forza</th><th>Kill–morti per mappa</th><th>Presenze</th><th>Puntuale</th><th>HS %</th><th class="l">Stile</th></tr></thead><tbody>' +
-      rows.map(function (a) { return '<tr><td class="l"><span style="display:inline-flex;align-items:center;gap:8px;font-weight:600">' + avHtml(a.k, a.n, 'sqn') + esc(a.n) + '</span></td><td>' + a.ev + '</td><td><b>' + (a.voto == null ? '–' : a.voto) + '</b></td><td>' + (a.forza == null ? '–' : a.forza.toFixed(1)) + '</td><td>' + Math.round(a.pres * 100) + '%</td><td>' + Math.round(a.punt * 100) + '%</td><td>' + Math.round(a.hs * 100) + '%</td><td class="l">' + a.stile + '</td></tr>'; }).join('') + '</tbody></table>' +
-      '<p class="note" style="margin-top:8px">Forza: 0 = il più basso del gruppo, 100 = il più alto, con più peso alle serate recenti. Con meno di 2 serate il voto è provvisorio.</p>' : '<div class="empty">Nessuna battaglia dal ' + dmy(RULES_SINCE) + ' in archivio.</div>';
+    $('#plotvoti').innerHTML = rows.length ? '<table class="stab"><thead><tr><th class="l">Giocatore</th><th>Serate</th><th>Forza</th><th>Kill–morti per mappa</th><th>Solo contro umani</th><th>Presenze</th><th>Puntuale</th><th>HS %</th><th class="l">Stile</th></tr></thead><tbody>' +
+      rows.map(function (a) { return '<tr><td class="l"><span style="display:inline-flex;align-items:center;gap:8px;font-weight:600">' + avHtml(a.k, a.n, 'sqn') + esc(a.n) + '</span></td><td>' + a.ev + '</td><td><b>' + (a.voto == null ? '–' : a.voto) + '</b></td><td' + (PL.mode === 'tutti' ? ' style="font-weight:700"' : '') + '>' + fx(a.forzaT) + '</td><td' + (PL.mode === 'umani' ? ' style="font-weight:700"' : '') + '>' + fx(a.forzaU) + '</td><td>' + Math.round(a.pres * 100) + '%</td><td>' + Math.round(a.punt * 100) + '%</td><td>' + Math.round(a.hs * 100) + '%</td><td class="l">' + a.stile + '</td></tr>'; }).join('') + '</tbody></table>' +
+      '<p class="note" style="margin-top:8px">Forza: 0 = il più basso del gruppo, 100 = il più alto, calcolata ' + modeName(PL.mode) + ', con più peso alle serate recenti. Con meno di 2 serate il voto è provvisorio. In grassetto la colonna usata.</p>' : '<div class="empty">Nessuna battaglia dal ' + dmy(RULES_SINCE) + ' in archivio.</div>';
   }
   function plotPdfHtml() {
     if (!PL.res || PL.res.err) plotRun();
@@ -2555,7 +2606,7 @@ try {
     var vt = function (k) { var a = M.by[k]; return a && a.voto != null ? ' (' + a.voto + ')' : ''; };
     function card(s, title, cur) {
       var E = s.E, p = Math.round(E.p * 100), pf = Math.round(E.pFull * 100);
-      return '<div class="pp-card' + (cur ? ' cur' : '') + '"><h3><span>' + title + '</span><b>' + p + '% – ' + (100 - p) + '%</b><span class="m">a ranghi completi ' + pf + '% – ' + (100 - pf) + '%' + (s.moves != null ? ' · ' + plural(s.moves, 'spostamento', 'spostamenti') + ' rispetto ad ora' : '') + '</span></h3>' +
+      return '<div class="pp-card' + (cur ? ' cur' : '') + '"><h3><span>' + title + '</span><b>' + p + '% – ' + (100 - p) + '%</b><span class="m">a ranghi completi ' + pf + '% – ' + (100 - pf) + '%' + (s.moves != null ? ' · ' + plural(s.moves, 'spostamento', 'spostamenti') + ' rispetto ad ora' : '') + (s.Ea ? ' · calcolata ' + modeName(M.mode === 'umani' ? 'tutti' : 'umani') + ' ' + Math.round(s.Ea.p * 100) + '% – ' + (100 - Math.round(s.Ea.p * 100)) + '%' : '') + '</span></h3>' +
         '<div class="pp-bar"><i style="width:' + p + '%;background:#d63a3a"></i><i style="width:' + (100 - p) + '%;background:#2a78d6"></i></div>' +
         '<div class="pp-t"><div><b>Squadra Rossa</b> · ' + s.t1.length + '<br>' + s.t1.map(function (k) { return esc(nm(k) + vt(k)); }).join(', ') + '<div class="m">presenze attese ' + E.ex1.toFixed(1) + ' · puntualità ' + Math.round(E.pu1 * 100) + '%</div></div>' +
         '<div class="b"><b>Squadra Blu</b> · ' + s.t2.length + '<br>' + s.t2.map(function (k) { return esc(nm(k) + vt(k)); }).join(', ') + '<div class="m">presenze attese ' + E.ex2.toFixed(1) + ' · puntualità ' + Math.round(E.pu2 * 100) + '%</div></div></div></div>';
@@ -2567,10 +2618,10 @@ try {
     return '<h1>Plotonometro</h1><div class="pp-sub">' + esc((F.clan || '').trim() || 'Clan') + ' · proposte per la serata del ' + dmy(F.date) + sea + ' · generato il ' + now.toLocaleDateString('it-IT') + ' alle ' + now.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) + '</div>' +
       '<h2>Filtri usati</h2><div class="pp-filt"><div><b>Giocatori considerati (' + on.length + '):</b> ' + on.map(function (p) { return esc(p.n + vt(p.k)); }).join(', ') +
       (off.length ? '<br><b>Esclusi (' + off.length + '):</b> ' + off.map(function (p) { return esc(p.n) + (p.bench ? ' (panchina)' : ''); }).join(', ') : '') + '</div>' +
-      '<div><b>Quanto conta:</b><ul><li>Forza ' + w.forza + '</li><li>Presenze ' + w.pres + '</li><li>Puntualità ' + w.punt + '</li><li>Stile di gioco ' + w.stile + '</li><li>Cambiare poco ' + w.stab + '</li></ul></div></div>' +
+      '<div><b>Quanto conta:</b><ul><li>Forza ' + w.forza + '</li><li>Presenze ' + w.pres + '</li><li>Puntualità ' + w.punt + '</li><li>Stile di gioco ' + w.stile + '</li><li>Cambiare poco ' + w.stab + '</li></ul><b>Forza calcolata:</b> ' + modeName(M.mode) + '</div></div>' +
       '<h2>Squadre</h2>' + (R.cur ? card(R.cur, 'Squadre attuali', true) : '') + R.top.map(function (s, i) { return card(s, 'Proposta ' + (i + 1), false); }).join('') +
-      '<h2 style="break-before:page">Voti del Plotonometro</h2><table><thead><tr><th>Giocatore</th><th>Serate</th><th>Forza</th><th>Kill–morti/mappa</th><th>Presenze</th><th>Puntuale</th><th>HS %</th><th class="l">Stile</th></tr></thead><tbody>' +
-      rows.map(function (a) { return '<tr><td>' + esc(a.n) + '</td><td>' + a.ev + '</td><td><b>' + (a.voto == null ? '–' : a.voto) + '</b></td><td>' + (a.forza == null ? '–' : a.forza.toFixed(1)) + '</td><td>' + Math.round(a.pres * 100) + '%</td><td>' + Math.round(a.punt * 100) + '%</td><td>' + Math.round(a.hs * 100) + '%</td><td class="l">' + a.stile + '</td></tr>'; }).join('') + '</tbody></table>' +
+      '<h2 style="break-before:page">Voti del Plotonometro</h2><table><thead><tr><th>Giocatore</th><th>Serate</th><th>Forza</th><th>Kill–morti/mappa</th><th>Solo umani</th><th>Presenze</th><th>Puntuale</th><th>HS %</th><th class="l">Stile</th></tr></thead><tbody>' +
+      rows.map(function (a) { return '<tr><td>' + esc(a.n) + '</td><td>' + a.ev + '</td><td><b>' + (a.voto == null ? '–' : a.voto) + '</b></td><td>' + fx(a.forzaT) + '</td><td>' + fx(a.forzaU) + '</td><td>' + Math.round(a.pres * 100) + '%</td><td>' + Math.round(a.punt * 100) + '%</td><td>' + Math.round(a.hs * 100) + '%</td><td class="l">' + a.stile + '</td></tr>'; }).join('') + '</tbody></table>' +
       '<div class="pp-foot">Calcolato su ' + plural(M.docs.length, 'battaglia', 'battaglie') + ' dal ' + dmy(RULES_SINCE) + ' (divieto di AWP, SCAR-20 e G3SG1), con più peso alle serate recenti. La prima percentuale tiene conto di quanto spesso ognuno è presente, la seconda vale se vengono tutti. Forza: 0 = il più basso del gruppo, 100 = il più alto. LONEBURDEGAZZ 2.0</div>';
   }
   function plotPdf() {
@@ -2598,6 +2649,8 @@ try {
     }
   });
   document.addEventListener('click', function (e) {
+    var mb = e.target.closest && e.target.closest('[data-plmode]');
+    if (mb) { PL.mode = mb.dataset.plmode; if (PL.res && !PL.res.err) plotRun(); else PL.res = null; renderPlot(); return; }
     var b = e.target.closest && e.target.closest('[data-plot]'); if (!b) return;
     if (b.dataset.plot === 'run') { plotRun(); renderPlot(); }
     else if (b.dataset.plot === 'pdf') plotPdf();
