@@ -300,12 +300,12 @@ html { -webkit-tap-highlight-color: transparent; }
 .ptn { position: absolute; min-height: 24px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 4px; text-align: center; border: 0; background: none; color: inherit; font: inherit; }
 .ptn b { font-weight: 700; font-size: 17px; line-height: 1.15; display: flex; flex-direction: column; }
 .ptn small { font-size: 12.5px; color: rgba(255,255,255,.82); font-weight: 500; margin-top: 1px; }
-.ptn i { position: absolute; top: -17px; left: 0; right: 0; font-style: normal; font-size: 12.5px; color: var(--muted); font-weight: 600; }
+.ptn i { position: absolute; top: -17px; left: 0; right: 0; font-style: normal; font-size: 12.5px; color: var(--ink); font-weight: 700; }
 button.ptn { cursor: pointer; }
 .ptn.a, .ptn.f { min-height: 34px; padding: 5px 8px; color: #fff; }
 .ptn.a { background: #1f8a4c; } .ptn.f { background: #2d6fc4; }
-.ptn.x b { color: var(--muted); font-weight: 500; font-size: 15px; }
-.ptn.g b { color: var(--muted); font-weight: 500; font-size: 13px; line-height: 1.3; opacity: .85; }
+.ptn.x b { color: var(--ink); font-weight: 700; font-size: 15px; }
+.ptn.g b { color: var(--ink); font-weight: 700; font-size: 13px; line-height: 1.3; }
 .ptn.root b { font-family: var(--f-display); font-weight: 800; font-size: 26px; text-transform: uppercase; white-space: nowrap; letter-spacing: .03em; }
 .ptn u { position: absolute; right: -5px; top: -5px; width: 14px; height: 14px; border-radius: 50%; background: #2fbf71; border: 2px solid var(--bg); }
 .ptn.sel { outline: 3px solid #f0a830; outline-offset: 3px; }
@@ -778,7 +778,7 @@ table.ptab tr.psep td { background: var(--ink); color: var(--bg); text-align: le
     <section class="sec">
       <header><div><h2>Il plotone · 2003 – oggi</h2><p>Chi ha portato chi, anno per anno. Tocca un nome per la sua scheda.</p></div>
         <div class="ptctl"><div class="seg" role="group" aria-label="Vista"><button type="button" data-ptv="albero">Albero</button><button type="button" data-ptv="tempo">Linea del tempo</button></div><button type="button" class="btn ghost sm" data-ptimg>Scarica immagine</button></div></header>
-      <div class="ptleg"><span><i class="sqf"></i>Fondatori</span><span><i class="sqa"></i>Nel plotone</span><span class="mut">grigio = non gioca più</span><span class="mut">sopra ogni nome l’anno di ingresso</span></div>
+      <div class="ptleg"><span><i class="sqf"></i>Fondatori</span><span><i class="sqa"></i>Nel plotone</span><span class="mut">senza riquadro = non gioca più</span><span class="mut">sopra ogni nome l’anno di ingresso</span></div>
       <div class="ptbody"><div class="ptmain" id="ptmain"></div><aside class="ptcard" id="ptcard"></aside></div>
     </section>
   </div>
@@ -1961,7 +1961,7 @@ try {
     try { if (document.fonts) await Promise.all([document.fonts.load('800 40px "Barlow Condensed"'), document.fonts.load('700 17px "Barlow"'), document.fonts.load('500 13px "Barlow"')]); } catch (e) {}
     x.fillStyle = '#0f1215'; x.fillRect(0, 0, W, H);
     x.fillStyle = '#eceef0'; x.font = '800 44px ' + DISP; x.textAlign = 'left'; x.fillText('IL PLOTONE LONEWOLF · 2003 – OGGI', P, 62);
-    x.fillStyle = '#838c95'; x.font = '500 17px ' + BODY; x.fillText('Chi ha portato chi, anno per anno · blu = fondatori · verde = nel plotone · grigio = non gioca più', P, 90);
+    x.fillStyle = '#838c95'; x.font = '500 17px ' + BODY; x.fillText('Chi ha portato chi, anno per anno · blu = fondatori · verde = nel plotone · senza riquadro = non gioca più', P, 90);
     x.save(); x.translate(P, TOP - 40);
     Lo.edges.forEach(function (e) { var a = e[0], b = e[1], y1 = a.d * Lo.LV + 24 + ptH(a) + 4, y2 = b.d * Lo.LV + 24 - (b.n[1] ? 20 : 6), ym = y2 - 16; x.beginPath(); x.moveTo(a.x, y1); x.lineTo(a.x, ym); x.lineTo(b.x, ym); x.lineTo(b.x, y2); x.strokeStyle = Lo.live[b.n[0]] ? '#2e7d4f' : '#2a3138'; x.lineWidth = Lo.live[b.n[0]] ? 2 : 1.5; x.stroke(); });
     Lo.nodes.forEach(function (m) {
@@ -1971,8 +1971,8 @@ try {
       if (t === 'a' || t === 'f') { x.fillStyle = t === 'a' ? '#1f8a4c' : '#2d6fc4'; x.beginPath(); if (x.roundRect) x.roundRect(l, y, m.w, h, 8); else x.rect(l, y, m.w, h); x.fill();
         x.fillStyle = '#fff'; x.font = '700 17px ' + BODY; x.fillText(n[0], m.x, y + (nk ? 20 : 23)); if (nk) { x.fillStyle = 'rgba(255,255,255,.82)'; x.font = '500 12.5px ' + BODY; x.fillText(nk, m.x, y + 37); }
         if (PT_LIVEF[n[0]]) { x.beginPath(); x.arc(l + m.w - 2, y + 2, 7, 0, Math.PI * 2); x.fillStyle = '#2fbf71'; x.fill(); x.strokeStyle = '#0f1215'; x.lineWidth = 2; x.stroke(); }
-      } else { x.fillStyle = '#838c95'; x.font = (t === 'g' ? '500 13px ' : '500 15px ') + BODY; lines.forEach(function (ln, i) { x.fillText(ln, m.x, y + (t === 'g' ? 14 + i * 17 : 17)); }); }
-      if (n[1]) { x.fillStyle = '#838c95'; x.font = '600 12.5px ' + BODY; x.fillText(n[1], m.x, y - 5); }
+      } else { x.fillStyle = '#eceef0'; x.font = (t === 'g' ? '700 13px ' : '700 15px ') + BODY; lines.forEach(function (ln, i) { x.fillText(ln, m.x, y + (t === 'g' ? 14 + i * 17 : 17)); }); }
+      if (n[1]) { x.fillStyle = '#eceef0'; x.font = '700 12.5px ' + BODY; x.fillText(n[1], m.x, y - 5); }
     });
     x.restore();
     x.fillStyle = '#6c7680'; x.font = '600 15px ' + BODY; x.textAlign = 'right'; x.fillText('LONEBURDEGAZZ 2.0', W - P, H - 22);
