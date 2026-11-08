@@ -219,6 +219,67 @@ dl.kv dt { color: var(--ink2); } dl.kv dd { margin: 0; font-weight: 700; text-al
 .foot { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); padding-top: 18px; }
 
 /* navigazione e archivio */
+
+/* ---------- app su telefono (Android) ---------- */
+html { -webkit-tap-highlight-color: transparent; }
+.fab, .sheetbg, .sheethd { display: none; }
+@media (max-width: 759px) {
+  body { padding-top: 0; }
+  .wrap { gap: 18px; }
+  /* barra in alto compatta e fissa */
+  .top { position: sticky; top: 0; z-index: 35; margin: 0 calc(-1 * max(16px, env(safe-area-inset-left, 0px))); padding: calc(8px + env(safe-area-inset-top, 0px)) 16px 8px; background: var(--surface); border-bottom: 1px solid var(--line); flex-wrap: nowrap; align-items: center; gap: 10px; }
+  .brand { gap: 10px; flex: 1; min-width: 0; }
+  .brand > div:first-child { order: 2; min-width: 0; }
+  .clanlogo { order: 1; height: 40px !important; }
+  .top .eyebrow { display: none; }
+  .top h1, body.indetail .top h1 { font-size: 22px; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .topr { flex-direction: row !important; align-items: center !important; margin-left: 0; gap: 6px; }
+  .tools { flex-wrap: nowrap; gap: 6px; }
+  .tools #auth { display: none !important; }
+  .tools #install { height: 38px; padding: 0 10px; font-size: 0; gap: 0; }
+  .tools #install svg { width: 20px; height: 20px; }
+  /* "Carica un log" diventa un pannello dal basso */
+  .drop { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; max-width: none !important; background: var(--surface); border: 0; border-top: 1px solid var(--line); border-radius: 16px 16px 0 0; padding: 18px 18px calc(22px + env(safe-area-inset-bottom, 0px)); flex-direction: column; align-items: stretch !important; gap: 14px; transform: translateY(105%); transition: transform .22s ease; box-shadow: 0 -10px 30px rgba(0,0,0,.3); }
+  body.sheet .drop { transform: none; }
+  body.sheet .top { z-index: 70; }
+  .drop .sheethd { display: flex; align-items: center; justify-content: space-between; font-family: var(--f-display); font-weight: 800; font-size: 22px; text-transform: uppercase; }
+  .drop .sheethd button { font: inherit; font-family: var(--f-body); font-size: 15px; font-weight: 600; text-transform: none; background: none; border: 0; color: var(--muted); padding: 6px; cursor: pointer; }
+  .drop > label.btn { justify-content: center; font-size: 17px; padding: 14px; }
+  .drop small { display: none !important; }
+  body.indetail .drop .cutl, .drop .cutl { display: flex !important; justify-content: space-between; font-size: 15px; }
+  .drop .cutl input { width: 150px; font-size: 16px; padding: 8px 10px; }
+  .sheetbg { display: block; position: fixed; inset: 0; z-index: 55; background: rgba(0,0,0,.45); }
+  .sheetbg[hidden] { display: none; }
+  #msg.moved:empty { display: none; }
+  #msg.moved { display: block; border-left: 3px solid var(--ros); padding: 6px 10px; background: var(--surface); }
+  /* pulsante flottante */
+  .fab { display: none; position: fixed; right: 16px; bottom: calc(80px + env(safe-area-inset-bottom, 0px)); z-index: 38; align-items: center; gap: 8px; height: 52px; padding: 0 18px 0 16px; border: 0; border-radius: 16px; background: #f0a830; color: #12171c; font-family: var(--f-display); font-weight: 800; font-size: 18px; letter-spacing: .02em; text-transform: uppercase; box-shadow: 0 6px 18px rgba(0,0,0,.35); cursor: pointer; }
+  body.v-archivio .fab { display: inline-flex; }
+  body.sheet .fab { display: none; }
+  body.v-archivio .barrow { padding-bottom: 64px; }
+  /* elenco battaglie a schede */
+  .tablewrap:has(.archt) { overflow: visible; border: 0; background: none; }
+  table.archt { min-width: 0 !important; display: block; }
+  table.archt thead { display: none; }
+  table.archt tbody { display: grid; gap: 10px; }
+  table.archt tr { display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: "n d t" "n w s" "n p a"; align-items: center; gap: 4px 12px; padding: 12px 14px; border: 1px solid var(--line); background: var(--surface); }
+  table.archt tr.cur { border-color: #f0a830; }
+  table.archt td { display: block; padding: 0 !important; border: 0 !important; background: none !important; text-align: left; white-space: nowrap; }
+  table.archt td:nth-child(1) { grid-area: n; align-self: stretch; display: flex; align-items: center; font-family: var(--f-display); font-weight: 800; font-size: 22px; }
+  table.archt td:nth-child(1) input { width: 20px; height: 20px; }
+  table.archt td:nth-child(2) { grid-area: d; font-weight: 700; font-size: 16px; }
+  table.archt td:nth-child(3) { grid-area: t; text-align: right; color: var(--muted); font-size: 13px; }
+  table.archt td:nth-child(4), table.archt td:nth-child(5) { display: none; }
+  table.archt td:nth-child(6) { grid-area: s; text-align: right; font-family: var(--f-display); font-weight: 800; font-size: 26px; line-height: 1; }
+  table.archt td:nth-child(7) { grid-area: p; color: var(--muted); font-size: 13px; }
+  table.archt td:nth-child(7)::before { content: "Punti "; }
+  table.archt td:nth-child(8) { grid-area: w; white-space: normal; }
+  table.archt td:nth-child(9) { grid-area: a; text-align: right; }
+  table.archt td:nth-child(9) .btn { min-height: 38px; padding: 8px 18px; }
+  /* tocchi più comodi */
+  .btn, .btn.sm { min-height: 40px; }
+  .navmore .navacc { font-family: var(--f-body); font-size: 14px; font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--line); border-radius: 0; white-space: normal; text-align: left; }
+}
 /* menu: barra laterale su computer, barra in basso su telefono */
 .tabs { position: fixed; z-index: 40; display: flex; background: var(--surface); }
 .tabs button { display: flex; align-items: center; justify-content: center; font-family: var(--f-display); font-weight: 700; letter-spacing: .02em; color: var(--muted); background: none; border: 0; cursor: pointer; }
@@ -524,6 +585,8 @@ table.ptab tr.psep td { background: var(--ink); color: var(--bg); text-align: le
 }
 </style>
 
+<button type="button" class="fab" id="fab" aria-controls="drop" aria-expanded="false"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V7M7 11l5-5 5 5M5 21h14"/></svg>Carica log</button>
+<div class="sheetbg" id="sheetbg" hidden></div>
 <div class="wrap">
   <header class="top">
     <div class="brand">
@@ -546,6 +609,7 @@ table.ptab tr.psep td { background: var(--ink); color: var(--bg); text-align: le
       </div>
       <div class="drop" id="drop">
         <input type="file" id="file" accept=".log,.txt,text/plain" multiple>
+        <div class="sheethd"><span>Carica la serata</span><button type="button" id="sheetx">Chiudi</button></div>
         <label class="btn" for="file">Carica un log</label>
         <small>oppure trascina qui i file della serata</small>
         <label class="cutl" for="cutword">Parti dal messaggio <input id="cutword" type="text" value="buona" maxlength="30" placeholder="vuoto = leggi tutto" autocomplete="off"></label>
@@ -563,7 +627,7 @@ table.ptab tr.psep td { background: var(--ink); color: var(--bg); text-align: le
     <button type="button" data-view="presenze" class="nmore"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="ic"><rect x="3" y="3" width="18" height="18" rx="4.5" fill="#2fbf71"/><path d="m7.4 12.4 3.1 3.1 6.2-7" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="nl">Presenze</span></button>
     <button type="button" data-view="record" class="nmore"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="ic"><path d="m12 2.6 2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17l-5.6 3 1.1-6.3-4.6-4.4 6.3-.9z" fill="#e5484d" stroke="#a52a2e" stroke-width="1" stroke-linejoin="round"/></svg><span class="nl">Record</span></button>
     <button type="button" class="nalt" id="navalt" aria-expanded="false" aria-controls="navmore"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg><span class="nl">Altro</span></button>
-    <div class="navmore" id="navmore" hidden><button type="button" data-view="presenze"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="ic"><rect x="3" y="3" width="18" height="18" rx="4.5" fill="#2fbf71"/><path d="m7.4 12.4 3.1 3.1 6.2-7" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Presenze</button><button type="button" data-view="record"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="ic"><path d="m12 2.6 2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17l-5.6 3 1.1-6.3-4.6-4.4 6.3-.9z" fill="#e5484d" stroke="#a52a2e" stroke-width="1" stroke-linejoin="round"/></svg>Record</button></div>
+    <div class="navmore" id="navmore" hidden><button type="button" class="navacc" id="navacc" hidden></button><button type="button" data-view="presenze"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="ic"><rect x="3" y="3" width="18" height="18" rx="4.5" fill="#2fbf71"/><path d="m7.4 12.4 3.1 3.1 6.2-7" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Presenze</button><button type="button" data-view="record"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="ic"><path d="m12 2.6 2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17l-5.6 3 1.1-6.3-4.6-4.4 6.3-.9z" fill="#e5484d" stroke="#a52a2e" stroke-width="1" stroke-linejoin="round"/></svg>Record</button></div>
   </nav>
 
   <div class="view" id="v-archivio">
@@ -1730,6 +1794,8 @@ try {
     document.body.classList.toggle('indetail', v === 'serata');
     if (['serata', 'archivio', 'classifica', 'fazioni', 'presenze', 'stagione', 'record'].indexOf(v) < 0) v = 'archivio';
     S.view = v;
+    ['serata', 'archivio', 'classifica', 'fazioni', 'presenze', 'stagione', 'record'].forEach(function (x) { document.body.classList.toggle('v-' + x, x === v); });
+    document.body.classList.remove('sheet'); try { $('#sheetbg').hidden = true; } catch (e) {}
     ['serata', 'archivio', 'classifica', 'fazioni', 'presenze', 'stagione', 'record'].forEach(function (x) { $('#v-' + x).hidden = x !== v; });
     Array.prototype.forEach.call(document.querySelectorAll('.tabs button[data-view]'), function (a) {
       if (a.dataset.view === v || (v === 'serata' && a.dataset.view === 'archivio')) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
@@ -1747,6 +1813,33 @@ try {
     if (!nm.hidden && !e.target.closest('#navmore')) { nm.hidden = true; na.setAttribute('aria-expanded', 'false'); }
   });
   document.addEventListener('keydown', function (e) { var nm = $('#navmore'); if (e.key === 'Escape' && nm && !nm.hidden) { nm.hidden = true; $('#navalt').setAttribute('aria-expanded', 'false'); $('#navalt').focus(); } });
+  /* ---- app su telefono ---- */
+  (function () {
+    var mq = window.matchMedia ? matchMedia('(max-width: 759px)') : null, fab = $('#fab'), bg = $('#sheetbg'), drop = $('#drop'), msg = $('#msg');
+    function sheet(on) { document.body.classList.toggle('sheet', on); bg.hidden = !on; fab.setAttribute('aria-expanded', on ? 'true' : 'false'); if (on) { var l = drop.querySelector('label.btn'); if (l) l.focus(); } }
+    fab.addEventListener('click', function () { sheet(true); });
+    bg.addEventListener('click', function () { sheet(false); });
+    $('#sheetx').addEventListener('click', function () { sheet(false); });
+    $('#file').addEventListener('change', function () { sheet(false); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && document.body.classList.contains('sheet')) sheet(false); });
+    /* il messaggio di stato resta visibile anche col pannello chiuso */
+    var home = msg.parentNode, after = msg.nextSibling, top = document.querySelector('header.top');
+    function place() {
+      if (mq && mq.matches) { if (!msg.classList.contains('moved')) { top.parentNode.insertBefore(msg, top.nextSibling); msg.classList.add('moved'); } }
+      else if (msg.classList.contains('moved')) { home.insertBefore(msg, after); msg.classList.remove('moved'); }
+    }
+    place(); if (mq) { try { mq.addEventListener('change', place); } catch (e) { mq.addListener(place); } }
+    /* "Esci" finisce nel menu Altro */
+    var auth = $('#auth'), acc = $('#navacc');
+    function syncAcc() { acc.hidden = auth.hidden || !auth.textContent; acc.textContent = auth.textContent; }
+    try { new MutationObserver(syncAcc).observe(auth, { attributes: true, childList: true, characterData: true, subtree: true }); } catch (e) {}
+    acc.addEventListener('click', function () { auth.click(); });
+    syncAcc();
+    /* colore della barra di stato di Android uguale alla barra in alto */
+    function tc() { var m = document.querySelector('meta[name="theme-color"]'); if (!m) { m = document.createElement('meta'); m.name = 'theme-color'; document.head.appendChild(m); } var c = getComputedStyle(document.documentElement).getPropertyValue('--surface').trim(); if (c) m.setAttribute('content', c); }
+    tc(); try { new MutationObserver(tc).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] }); } catch (e) {}
+    if (window.matchMedia) { try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', tc); } catch (e) {} }
+  })();
   window.addEventListener('hashchange', function () { var v = (location.hash || '').slice(1); if (v !== S.view) setView(v); });
 
   function renderSave() {
@@ -1819,7 +1912,7 @@ try {
         '<button class="btn ghost dng" data-act="delall"' + off + '>Elimina TUTTO</button>' +
         '<span class="note">' + (!canDel ? 'Solo il proprietario può eliminare.' : !selDoc ? 'Seleziona una battaglia dall’elenco per eliminarla.' : '') + '</span></div>';
     }
-    box.innerHTML = localNote() + '<div class="tablewrap"><table style="min-width:820px"><thead><tr>' + th + '</tr></thead><tbody>' + rows + '</tbody></table></div>' + '<div class="barrow">' + danger + toolsHtml() + '</div>' +
+    box.innerHTML = localNote() + '<div class="tablewrap"><table class="archt" style="min-width:820px"><thead><tr>' + th + '</tr></thead><tbody>' + rows + '</tbody></table></div>' + '<div class="barrow">' + danger + toolsHtml() + '</div>' +
       (A.msg && S.view === 'archivio' ? '<p class="note" role="status" style="margin-top:12px"><b>' + esc(A.msg) + '</b></p>' : '');
     renderRank();
   }
