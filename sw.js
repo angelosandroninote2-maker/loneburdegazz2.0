@@ -1,5 +1,5 @@
 /* Service worker: tiene una copia del sito per aprirlo anche con rete lenta. Le pagine si prendono prima dalla rete, così gli aggiornamenti arrivano subito. */
-var NAME = 'lbg-v3';
+var NAME = 'lbg-v4';
 var SHELL = ['./', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'];
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(NAME).then(function (c) { return c.addAll(SHELL); }).then(function () { return self.skipWaiting(); }));
