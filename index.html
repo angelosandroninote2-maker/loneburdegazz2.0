@@ -388,6 +388,20 @@ dialog.pst::backdrop { background: rgba(10, 12, 15, .55); }
 .pst .row:last-child { border-bottom: 0; }
 .pst .row .num { font-family: var(--f-mono); font-size: 13px; }
 .pst .note { font-size: 12px; }
+.recgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.reccard { border: 1px solid var(--line); background: var(--surface); padding: 14px 16px; display: grid; gap: 10px; }
+.reccard h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.recmain { display: flex; align-items: center; gap: 12px; }
+.recmain .av { width: 56px; height: 56px; font-size: 22px; flex-shrink: 0; }
+.recsw { width: 56px; height: 56px; flex-shrink: 0; border: 1px solid var(--line); }
+.recv { font-family: var(--f-display); font-weight: 900; font-size: 44px; line-height: 1; }
+.recv small { font-family: var(--f-body); font-size: 14px; font-weight: 600; color: var(--muted); margin-left: 4px; }
+.recwho { font-weight: 700; }
+.recx { font-size: 13px; color: var(--muted); }
+.recpod { display: grid; gap: 2px; border-top: 1px dashed var(--line); padding-top: 8px; }
+.recpod div { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.recpod span:last-child { font-family: var(--f-mono); font-size: 12px; color: var(--ink2); }
+.reclive { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; padding: 1px 6px; border: 1px solid currentColor; color: #c98a12; margin-left: 6px; }
 .plmode { display: inline-flex; border: 1px solid var(--line); margin-bottom: 14px; }
 .plmode button { font: inherit; font-size: 13px; font-weight: 700; padding: 6px 12px; border: 0; background: var(--bg); color: var(--muted); cursor: pointer; }
 .plmode button + button { border-left: 1px solid var(--line); }
@@ -495,6 +509,7 @@ table.ptab tr.psep td { background: var(--ink); color: var(--bg); text-align: le
     <button type="button" data-view="stagione">Stagione</button>
     <button type="button" data-view="fazioni">Fazioni</button>
     <button type="button" data-view="presenze">Presenze</button>
+    <button type="button" data-view="record">Record</button>
   </nav>
 
   <div class="view" id="v-archivio">
@@ -585,6 +600,13 @@ table.ptab tr.psep td { background: var(--ink); color: var(--bg); text-align: le
       <div class="tablewrap" id="spl"></div>
       <h3 class="sh3">Albo delle stagioni</h3>
       <div id="salbo"></div>
+    </section>
+  </div>
+
+  <div class="view" id="v-record" hidden>
+    <section class="sec">
+      <header><h2>Albo dei record</h2><p id="recnote"></p></header>
+      <div id="rec"></div>
     </section>
   </div>
 
@@ -1652,15 +1674,16 @@ try {
 
   function setView(v) {
     document.body.classList.toggle('indetail', v === 'serata');
-    if (['serata', 'archivio', 'classifica', 'fazioni', 'presenze', 'stagione'].indexOf(v) < 0) v = 'archivio';
+    if (['serata', 'archivio', 'classifica', 'fazioni', 'presenze', 'stagione', 'record'].indexOf(v) < 0) v = 'archivio';
     S.view = v;
-    ['serata', 'archivio', 'classifica', 'fazioni', 'presenze', 'stagione'].forEach(function (x) { $('#v-' + x).hidden = x !== v; });
+    ['serata', 'archivio', 'classifica', 'fazioni', 'presenze', 'stagione', 'record'].forEach(function (x) { $('#v-' + x).hidden = x !== v; });
     Array.prototype.forEach.call(document.querySelectorAll('.tabs button'), function (a) {
       if (a.dataset.view === v || (v === 'serata' && a.dataset.view === 'archivio')) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     });
     if (v === 'fazioni') { try { renderFaz(); } catch (e) {} }
     if (v === 'presenze') { try { renderPres(); } catch (e) {} }
     if (v === 'stagione') { try { SEAS.confirm = false; renderStag(); } catch (e) {} }
+    if (v === 'record') { try { renderRec(); } catch (e) {} }
     if (location.hash !== '#' + v) { try { location.hash = v; } catch (e) {} }
   }
   window.addEventListener('hashchange', function () { var v = (location.hash || '').slice(1); if (v !== S.view) setView(v); });
@@ -2772,17 +2795,135 @@ try {
   var PAG_TOP = ['Macchina da guerra', 'Ha portato la squadra in braccio', 'Cecchino con licenza di uccidere', 'Il server ha chiesto pietà', 'Da convocare in nazionale', 'Rambo in persona', 'Mira laser, nervi d’acciaio', 'I bot tremano solo a sentirlo', 'Generale a cinque stelle', 'Leggenda del plotone'];
   var PAG_FLOP = ['Disperso in azione', 'Turista del server', 'Ha sparato soprattutto ai muri', 'Più respawn che kill', 'In missione diplomatica', 'Bersaglio mobile di giornata', 'Ha confuso il fucile con l’ombrello', 'Cerca ancora la mappa', 'Stasera in modalità pacifista', 'Lunedì prossimo si rifà'];
   function pagHash(s) { var h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; }
-  function pagVotes() {
-    if (!S.r) return [];
-    var ps = S.r.players.filter(function (p) { return !p.bot && p.maps > 0 && (p.squad === 0 || p.squad === 1); });
+  /* voto da 4 a 10 rispetto agli altri presenti; ps = [{k,n,sq,m,K,D,A,mw}] */
+  function votesOf(ps) {
+    ps = ps.filter(function (p) { return p.m > 0 && (p.sq === 0 || p.sq === 1); });
     if (!ps.length) return [];
-    var sc = ps.map(function (p) { var m = p.maps; return (p.kills - p.deaths) / m + 0.5 * p.assists / m + 6 * p.mapsWon / m; });
+    var sc = ps.map(function (p) { var m = p.m; return (p.K - p.D) / m + 0.5 * p.A / m + 6 * p.mw / m; });
     var mu = sc.reduce(function (a, b) { return a + b; }, 0) / sc.length;
     var sd = Math.sqrt(sc.reduce(function (a, b) { return a + (b - mu) * (b - mu); }, 0) / sc.length) || 1;
     return ps.map(function (p, i) {
-      var v = 6 + 1.6 * (sc[i] - mu) / sd; v = Math.max(4, Math.min(10, Math.round(v * 2) / 2));
-      return { k: p.key, n: p.name, sq: p.squad, v: v, s: sc[i] };
+      var z = (sc[i] - mu) / sd, v = 6 + 1.6 * z; v = Math.max(4, Math.min(10, Math.round(v * 2) / 2));
+      return { k: p.k, n: p.n, sq: p.sq, v: v, s: sc[i], z: z };
     });
+  }
+  function pagVotes() {
+    if (!S.r) return [];
+    return votesOf(S.r.players.filter(function (p) { return !p.bot; }).map(function (p) { return { k: p.key, n: p.name, sq: p.squad, m: p.maps, K: p.kills, D: p.deaths, A: p.assists, mw: p.mapsWon }; }));
+  }
+
+  /* ---------- ALBO DEI RECORD (dal 22/06) ---------- */
+  var REC_DEF = [
+    { id: 'mk', t: 'Più kill in una mappa', u: 'kill' },
+    { id: 'ms', t: 'Serie più lunga senza morire', u: 'kill di fila' },
+    { id: 'mh', t: 'Più headshot in una mappa', u: 'headshot' },
+    { id: 'ek', t: 'Più kill in una serata', u: 'kill' },
+    { id: 'vo', t: 'Voto più alto al pagellone', u: '' },
+    { id: 'ne', t: 'Serata più netta', u: '' },
+    { id: 'ts', t: 'Serate vinte di fila', u: 'serate' },
+    { id: 'pv', t: 'Presenze in verde di fila', u: 'lunedì' }
+  ];
+  function recColor(d, c) { var ov = d.presOv && d.presOv[c.k], e = d.pres && d.pres.p[c.k]; if (ov) return ov; if (e && (c.played || e.c !== 'r')) return e.c; return c.played ? (d.pres ? 'v' : '?') : 'r'; }
+  /* docs in ordine di data; det = {id: dettaglio}; restituisce per ogni record l'elenco delle imprese */
+  function recEntries(docs, det) {
+    var E = {}; REC_DEF.forEach(function (r) { E[r.id] = []; });
+    var nm = {};
+    docs.forEach(function (d) {
+      (d.players || []).forEach(function (p) { nm[canon(p.k)] = p.n; });
+      (d.players || []).forEach(function (p) { if (p.K) E.ek.push({ k: canon(p.k), n: p.n, v: p.K, tb: 0, d: d.date, id: d.id, x: plural(p.m, 'mappa', 'mappe') }); });
+      votesOf((d.players || []).map(function (p) { return { k: p.k, n: p.n, sq: p.sq, m: p.m, K: p.K, D: p.D, A: p.A, mw: p.mw }; })).forEach(function (v) {
+        E.vo.push({ k: canon(v.k), n: v.n, v: v.v, tb: v.z, d: d.date, id: d.id, x: '', disp: pagFmt(v.v) });
+      });
+      if (d.wins) {
+        var ri = redIdxOf(d), r = d.wins[ri], b = d.wins[1 - ri], diff = Math.abs(r - b);
+        if (diff > 0) E.ne.push({ k: null, team: r > b ? 'Rossa' : 'Blu', n: 'Squadra ' + (r > b ? 'Rossa' : 'Blu'), v: diff, tb: r + b, d: d.date, id: d.id, disp: Math.max(r, b) + '–' + Math.min(r, b), x: '' });
+      }
+      var dt = det && det[d.id];
+      if (dt) dt.maps.forEach(function (mp) {
+        var lab = mp.label || mp.name || 'mappa';
+        mp.players.forEach(function (o) {
+          if (o.b) return;
+          var k = canon(o.k), n = nm[k] || o.n;
+          if (o.kills) E.mk.push({ k: k, n: n, v: o.kills, tb: 0, d: d.date, id: d.id, x: lab });
+          if (o.best) E.ms.push({ k: k, n: n, v: o.best, tb: 0, d: d.date, id: d.id, x: lab });
+          if (o.hs) E.mh.push({ k: k, n: n, v: o.hs, tb: 0, d: d.date, id: d.id, x: lab });
+        });
+      });
+    });
+    /* serie di serate vinte dalla stessa squadra */
+    var cur = null;
+    docs.forEach(function (d, i) {
+      var w = d.winner == null ? null : (d.winner === redIdxOf(d) ? 'Rossa' : 'Blu');
+      if (w && cur && cur.team === w) { cur.v++; cur.d = d.date; cur.id = d.id; }
+      else { if (cur) E.ts.push(cur); cur = w ? { k: null, team: w, n: 'Squadra ' + w, v: 1, tb: 0, from: d.date, d: d.date, id: d.id } : null; }
+    });
+    if (cur) { cur.live = true; E.ts.push(cur); }
+    /* lunedì di fila in verde */
+    var run = {}, keys = {};
+    docs.forEach(function (d) { (d.players || []).forEach(function (p) { keys[canon(p.k)] = 1; }); if (d.pres) Object.keys(d.pres.p).forEach(function (k) { if ((d.players || []).some(function (p) { return p.k === k; })) keys[canon(k)] = 1; }); });
+    docs.forEach(function (d) {
+      var played = {}; (d.players || []).forEach(function (p) { played[canon(p.k)] = p.k; });
+      Object.keys(keys).forEach(function (k) {
+        var raw = played[k] || k, c = recColor(d, { k: raw, played: !!played[k] });
+        if (c === 'v') { var r = run[k] || (run[k] = { k: k, n: nm[k] || k, v: 0, tb: 0, from: d.date }); r.v++; r.d = d.date; r.id = d.id; }
+        else if (run[k]) { E.pv.push(run[k]); delete run[k]; }
+      });
+    });
+    Object.keys(run).forEach(function (k) { run[k].live = true; E.pv.push(run[k]); });
+    E.pv.forEach(function (r) { r.n = nm[r.k] || r.n; r.x = r.v > 1 ? 'dal ' + dmy(r.from) + ' al ' + dmy(r.d) : dmy(r.d); });
+    E.ts.forEach(function (r) { r.x = r.v > 1 ? 'dal ' + dmy(r.from) + ' al ' + dmy(r.d) : dmy(r.d); });
+    return E;
+  }
+  /* classifica: valore, poi spareggio, poi chi ci è arrivato prima; un posto per ogni giocatore o squadra */
+  function recRank(list, distinct) {
+    var L2 = list.slice().sort(function (a, b) { return b.v - a.v || b.tb - a.tb || (a.d < b.d ? -1 : a.d > b.d ? 1 : 0); });
+    if (!distinct) return L2;
+    var seen = {}, out = [];
+    L2.forEach(function (e) { var h = e.k || (e.team && e.from ? e.team + e.from : e.id); if (!seen[h]) { seen[h] = 1; out.push(e); } });
+    return out;
+  }
+  function recDisp(r, e) { return e.disp || String(e.v); }
+  function recUnit(r, e) { return r.id === 'ne' || r.id === 'vo' ? '' : (e.v === 1 && r.id === 'ts' ? 'serata' : e.v === 1 && r.id === 'pv' ? 'lunedì' : r.u); }
+  var REC = { det: null };
+  async function renderRec() {
+    var box = $('#rec'); if (!box) return;
+    var docs = (A.docs || []).filter(function (d) { return d.date >= RULES_SINCE; }).sort(function (a, b) { return a.ts - b.ts; });
+    $('#recnote').textContent = 'Dal ' + dmy(RULES_SINCE) + ' (divieto di AWP, SCAR-20 e G3SG1) · ' + plural(docs.length, 'serata', 'serate');
+    if (!docs.length) { box.innerHTML = '<div class="empty">I record compaiono dopo la prima battaglia salvata dal ' + dmy(RULES_SINCE) + '.</div>'; return; }
+    var need = docs.some(function (d) { return !PL.det || PL.det[d.id] === undefined; });
+    if (need) { if (!box.innerHTML) box.innerHTML = '<p class="note">Carico i record…</p>'; await plotDetails(docs); if (S.view !== 'record') return; }
+    var E = recEntries(docs, PL.det);
+    box.innerHTML = '<div class="recgrid">' + REC_DEF.map(function (r) {
+      var R = recRank(E[r.id], true), a = R[0];
+      if (!a) return '<div class="reccard"><h3>' + r.t + '</h3><p class="note">Ancora nessun dato.</p></div>';
+      var pic = a.k ? avHtml(a.k, a.n, 'sqn') : '<span class="recsw" style="background:var(--' + (a.team === 'Rossa' ? 'ros' : 'blu') + ')" aria-hidden="true"></span>';
+      var when = r.id === 'ts' || r.id === 'pv' ? a.x : dmy(a.d) + (a.x ? ' · ' + esc(a.x) : '');
+      return '<div class="reccard"><h3>' + r.t + '</h3>' +
+        '<div class="recmain">' + pic + '<div><div class="recv">' + esc(recDisp(r, a)) + (recUnit(r, a) ? '<small>' + recUnit(r, a) + '</small>' : '') + '</div>' +
+        '<div class="recwho">' + esc(a.n) + (a.live ? '<span class="reclive">in corso</span>' : '') + '</div><div class="recx">' + when + '</div></div></div>' +
+        (R.length > 1 ? '<div class="recpod">' + R.slice(1, 3).map(function (e, i) { return '<div><span>' + (i + 2) + '. ' + esc(e.n) + (e.live ? ' · in corso' : '') + '</span><span>' + esc(recDisp(r, e)) + (recUnit(r, e) ? ' ' + recUnit(r, e) : '') + ' · ' + (r.id === 'ts' || r.id === 'pv' ? dmy(e.d) : dmy(e.d)) + '</span></div>'; }).join('') + '</div>' : '') +
+        '</div>';
+    }).join('') + '</div><p class="note" style="margin-top:12px">A parità vale chi ci è arrivato prima. Nel voto del pagellone, a parità di voto vince la prestazione più netta rispetto agli altri presenti. “In corso” vuol dire che la serie non si è ancora interrotta.</p>';
+  }
+  /* record battuti dalla serata aperta, rispetto alle serate precedenti */
+  async function recNew() {
+    if (!S.r || !S.parsed || S.r.date < RULES_SINCE || !A.docs) return [];
+    var prev = A.docs.filter(function (d) { return d.date >= RULES_SINCE && d.date < S.r.date; }).sort(function (a, b) { return a.ts - b.ts; });
+    if (!prev.length) return [];
+    await plotDetails(prev);
+    var pk = L.pack(S.parsed, S.r, [S.names[0], S.names[1], S.swap ? '1' : ''], S.overrides);
+    var old = A.docs.filter(function (d) { return d.id === pk.id; })[0], cd = pk.summary;
+    if (S.pres) cd.pres = S.pres; else if (old && old.pres) cd.pres = old.pres;
+    if (old && old.presOv) cd.presOv = old.presOv;
+    var det = {}; Object.keys(PL.det || {}).forEach(function (k) { det[k] = PL.det[k]; }); det[pk.id] = pk.detail;
+    var Ep = recEntries(prev, det), En = recEntries(prev.concat([cd]), det), out = [];
+    REC_DEF.forEach(function (r) {
+      var bp = recRank(Ep[r.id])[0], mine = recRank(En[r.id].filter(function (e) { return e.d === cd.date; }))[0];
+      if (!bp || !mine) return;
+      var better = mine.v > bp.v || (mine.v === bp.v && mine.tb > bp.tb + 1e-9), same = mine.v === bp.v && Math.abs(mine.tb - bp.tb) < 1e-9;
+      if (better || same) out.push({ r: r, e: mine, eq: !better });
+    });
+    return out;
   }
   /* commento breve per ognuno: prima una caratteristica che lo distingue, poi il voto */
   var PAG_C = {
@@ -2826,7 +2967,12 @@ try {
     if (cv.height !== H) cv.height = H;
     var DISP = '"Big Shoulders Display", Impact, "Arial Narrow", sans-serif', BODY = '"Hanken Grotesk", Arial, sans-serif';
     try { if (document.fonts) await Promise.all([document.fonts.load('900 80px "Big Shoulders Display"'), document.fonts.load('700 26px "Hanken Grotesk"')]); } catch (e) {}
-    var V = V0, imgs = {}, CM = pagComments(V);
+    var V = V0, imgs = {}, CM = pagComments(V), RN = [];
+    try { RN = await recNew(); } catch (e) { RN = []; }
+    if (seq !== pagSeq) return;
+    var BAN = RN.length ? 26 + RN.length * 34 : 0, recK = {};
+    RN.forEach(function (o) { if (o.e.k) recK[o.e.k] = 1; });
+    if (BAN) { H += BAN; Y0C += BAN; if (cv.height !== H) cv.height = H; }
     await Promise.all(V.map(function (p) { return fzImg(p.k).then(function (im) { imgs[p.k] = im; }); }));
     if (seq !== pagSeq) return;
     var COL = function (sq) { return colorOf(sq) === 'Blu' ? { c: '#3987e5', d: '#173f73' } : { c: '#e5484d', d: '#7a1f22' }; };
@@ -2854,11 +3000,24 @@ try {
       else { x.fillStyle = '#eceef0'; x.font = '800 ' + Math.round(r) + 'px ' + DISP; x.textBaseline = 'middle'; x.textAlign = 'center'; x.fillText(initial(n), cx, cy + 3); x.textBaseline = 'alphabetic'; }
       x.restore(); x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.strokeStyle = col.c; x.lineWidth = Math.max(3, r / 12); x.stroke();
     }
+    if (BAN) {
+      var by = 270, bw = 1100;
+      x.fillStyle = 'rgba(240,168,48,0.12)'; x.fillRect(W / 2 - bw / 2, by, bw, BAN - 14);
+      x.strokeStyle = '#f0a830'; x.lineWidth = 2; x.strokeRect(W / 2 - bw / 2 + 1, by + 1, bw - 2, BAN - 16);
+      x.textAlign = 'center';
+      RN.forEach(function (o, i) {
+        var r = o.r, e = o.e, u = recUnit(r, e);
+        var txt = (o.eq ? '★ RECORD EGUAGLIATO · ' : '★ NUOVO RECORD · ') + e.n + ' · ' + recDisp(r, e) + (u ? ' ' + u : '') + ' · ' + r.t.toLowerCase().replace(/^più /, 'più ') + (e.x && r.id !== 'ts' && r.id !== 'pv' && r.id !== 'ek' ? ' (' + e.x + ')' : '');
+        x.font = '900 28px ' + DISP; x.fillStyle = '#f0a830';
+        var t2 = txt; while (x.measureText(t2).width > bw - 40 && t2.length > 10) t2 = t2.slice(0, -2) + '…';
+        x.fillText(t2.toUpperCase(), W / 2, by + 36 + i * 34);
+      });
+    }
     /* pagellone a due colonne */
-    x.fillStyle = '#f0a830'; x.font = '900 30px ' + DISP; x.textAlign = 'center'; x.fillText('— PAGELLONE —', W / 2, 296);
+    x.fillStyle = '#f0a830'; x.font = '900 30px ' + DISP; x.textAlign = 'center'; x.fillText('— PAGELLONE —', W / 2, 296 + BAN);
     [0, 1].forEach(function (sq) {
       var col = COL(sq), list = V.filter(function (p) { return p.sq === sq; }).sort(function (a, b) { return b.v - a.v || b.s - a.s; });
-      var x0 = sq === 0 ? 90 : 850, w = 660, y = 320, rh = RH;
+      var x0 = sq === 0 ? 90 : 850, w = 660, y = 320 + BAN, rh = RH;
       x.fillStyle = col.c; x.fillRect(x0, y - 6, w, 4);
       list.forEach(function (p, i) {
         var cy = y + 26 + i * rh;
@@ -2867,6 +3026,7 @@ try {
         var nm = p.n; while (x.measureText(nm).width > w - 170 && nm.length > 3) nm = nm.slice(0, -2) + '…';
         x.fillText(nm, x0 + 54, cy - 1);
         var tw = x.measureText(nm).width;
+        if (recK[p.k] || recK[canon(p.k)]) { x.fillStyle = '#f0a830'; x.font = '900 24px ' + BODY; x.fillText('★', x0 + 62 + tw, cy - 1); tw += 30; }
         x.fillStyle = 'rgba(236,238,240,0.25)'; for (var dx = x0 + 64 + tw; dx < x0 + w - 80; dx += 12) x.fillRect(dx, cy - 4, 3, 3);
         var cm = CM[p.k] || ''; x.font = 'italic 500 18px ' + BODY; x.fillStyle = '#9aa3ab';
         while (cm && x.measureText(cm).width > w - 140 && cm.length > 3) cm = cm.slice(0, -2) + '…';
@@ -3046,6 +3206,7 @@ try {
       if (S.view === 'fazioni') renderFaz();
       if (S.view === 'presenze') renderPres();
       if (S.view === 'stagione') renderStag();
+      if (S.view === 'record') renderRec();
     }, function (err) {
       clearTimeout(timer);
       A.ready = true; A.err = (err && err.code) || 'err';
