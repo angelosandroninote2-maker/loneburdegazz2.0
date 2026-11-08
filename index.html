@@ -2784,14 +2784,49 @@ try {
       return { k: p.key, n: p.name, sq: p.squad, v: v, s: sc[i] };
     });
   }
+  /* commento breve per ognuno: prima una caratteristica che lo distingue, poi il voto */
+  var PAG_C = {
+    tk: ['Ha confuso i compagni con i nemici', 'Fuoco amico, amicizia finita'],
+    hs: ['Mira solo alle teste, per principio', 'Collezionista ufficiale di elmetti'],
+    camp: ['Ha messo radici in un angolo', 'Affittuario fisso dell’angolo buio'],
+    ass: ['Il miglior amico dei compagni: assist a pioggia', 'Lavora per gli altri, come un mediano'],
+    die: ['Il respawn come stile di vita', 'Ha visto più respawn che mappe'],
+    nade: ['Granate lanciate come coriandoli', 'A carnevale ogni granata vale'],
+    v9: ['Ha fatto il server a fette', 'Imbarazzante per quanto è forte', 'Da mettere in bacheca'],
+    v7: ['Serata da incorniciare (quasi)', 'Solido come un mattone', 'Ha fatto il suo, e pure di più'],
+    v6: ['Compitino fatto, senza lode', 'Né infamia né lode, ma presente', 'Sufficienza piena, si va avanti'],
+    v5: ['Stasera un po’ in ritardo sui riflessi', 'Ha giocato col freno a mano tirato', 'Rimandato a lunedì prossimo'],
+    v4: ['I bot lo salutavano per nome', 'Presente solo nello spirito', 'Ha fatto il turista con il fucile']
+  };
+  function pagComments(V) {
+    var used = {}, out = {}, P = {};
+    V.forEach(function (p) { var q = (S.r.players || []).filter(function (a) { return a.key === p.k; })[0]; if (q) P[p.k] = q; });
+    function best(fn, min) { var b = null, bv = min; V.forEach(function (p) { var q = P[p.k]; if (!q) return; var v = fn(q); if (v > bv) { bv = v; b = p.k; } }); return b; }
+    var m = function (q) { return Math.max(q.maps, 1); };
+    var traits = [
+      ['tk', best(function (q) { return q.tk || 0; }, 1)],
+      ['hs', best(function (q) { return q.kills >= 30 ? q.hs / q.kills : 0; }, 0.4)],
+      ['camp', best(function (q) { return (q.campers || 0) / m(q); }, 2)],
+      ['ass', best(function (q) { return q.assists / m(q); }, 2)],
+      ['die', best(function (q) { return q.deaths / m(q); }, 0)],
+      ['nade', best(function (q) { return (q.nades || 0) / m(q); }, 5)]
+    ];
+    function pick(list, k) { var j = pagHash(S.r.date + k) % list.length, n = 0; while (used[list[j]] && n < list.length) { j = (j + 1) % list.length; n++; } used[list[j]] = 1; return list[j]; }
+    traits.forEach(function (t) { if (t[1] && !out[t[1]]) out[t[1]] = pick(PAG_C[t[0]], t[1]); });
+    V.forEach(function (p) { if (!out[p.k]) out[p.k] = pick(PAG_C[p.v >= 8.5 ? 'v9' : p.v >= 7 ? 'v7' : p.v >= 6 ? 'v6' : p.v >= 5 ? 'v5' : 'v4'], p.k); });
+    return out;
+  }
   function pagFmt(v) { return String(v).replace('.', ','); }
   var pagSeq = 0;
   async function drawPag() {
     var cv = $('#pagcanvas'); if (!cv || !S.r) return;
-    var seq = ++pagSeq, x = cv.getContext('2d'), W = 1600, H = 900;
+    var seq = ++pagSeq, x = cv.getContext('2d'), W = 1600;
+    var V0 = pagVotes(), nMax = Math.max(1, V0.filter(function (p) { return p.sq === 0; }).length, V0.filter(function (p) { return p.sq === 1; }).length);
+    var RH = 58, Y0C = 320 + nMax * RH + 28, H = Y0C + 210 + 56;
+    if (cv.height !== H) cv.height = H;
     var DISP = '"Big Shoulders Display", Impact, "Arial Narrow", sans-serif', BODY = '"Hanken Grotesk", Arial, sans-serif';
     try { if (document.fonts) await Promise.all([document.fonts.load('900 80px "Big Shoulders Display"'), document.fonts.load('700 26px "Hanken Grotesk"')]); } catch (e) {}
-    var V = pagVotes(), imgs = {};
+    var V = V0, imgs = {}, CM = pagComments(V);
     await Promise.all(V.map(function (p) { return fzImg(p.k).then(function (im) { imgs[p.k] = im; }); }));
     if (seq !== pagSeq) return;
     var COL = function (sq) { return colorOf(sq) === 'Blu' ? { c: '#3987e5', d: '#173f73' } : { c: '#e5484d', d: '#7a1f22' }; };
@@ -2823,17 +2858,20 @@ try {
     x.fillStyle = '#f0a830'; x.font = '900 30px ' + DISP; x.textAlign = 'center'; x.fillText('— PAGELLONE —', W / 2, 296);
     [0, 1].forEach(function (sq) {
       var col = COL(sq), list = V.filter(function (p) { return p.sq === sq; }).sort(function (a, b) { return b.v - a.v || b.s - a.s; });
-      var x0 = sq === 0 ? 90 : 850, w = 660, y = 320, rh = Math.min(42, 300 / Math.max(list.length, 1));
+      var x0 = sq === 0 ? 90 : 850, w = 660, y = 320, rh = RH;
       x.fillStyle = col.c; x.fillRect(x0, y - 6, w, 4);
       list.forEach(function (p, i) {
-        var cy = y + 18 + i * rh;
-        avatar(p.k, p.n, x0 + 18, cy, Math.min(17, rh / 2 - 2), col);
+        var cy = y + 26 + i * rh;
+        avatar(p.k, p.n, x0 + 22, cy, 21, col);
         x.textAlign = 'left'; x.fillStyle = '#eceef0'; x.font = '700 24px ' + BODY;
         var nm = p.n; while (x.measureText(nm).width > w - 170 && nm.length > 3) nm = nm.slice(0, -2) + '…';
-        x.fillText(nm, x0 + 46, cy + 8);
+        x.fillText(nm, x0 + 54, cy - 1);
         var tw = x.measureText(nm).width;
-        x.fillStyle = 'rgba(236,238,240,0.25)'; for (var dx = x0 + 56 + tw; dx < x0 + w - 80; dx += 12) x.fillRect(dx, cy + 5, 3, 3);
-        x.textAlign = 'right'; x.fillStyle = p.v >= 7 ? '#5fd38a' : p.v < 6 ? '#f58a8d' : '#eceef0'; x.font = '900 34px ' + DISP; x.fillText(pagFmt(p.v), x0 + w, cy + 12);
+        x.fillStyle = 'rgba(236,238,240,0.25)'; for (var dx = x0 + 64 + tw; dx < x0 + w - 80; dx += 12) x.fillRect(dx, cy - 4, 3, 3);
+        var cm = CM[p.k] || ''; x.font = 'italic 500 18px ' + BODY; x.fillStyle = '#9aa3ab';
+        while (cm && x.measureText(cm).width > w - 140 && cm.length > 3) cm = cm.slice(0, -2) + '…';
+        if (cm) x.fillText(cm, x0 + 54, cy + 22);
+        x.textAlign = 'right'; x.fillStyle = p.v >= 7 ? '#5fd38a' : p.v < 6 ? '#f58a8d' : '#eceef0'; x.font = '900 40px ' + DISP; x.fillText(pagFmt(p.v), x0 + w, cy + 14);
       });
     });
     /* 2 top e 2 flop */
@@ -2846,7 +2884,7 @@ try {
       used[list[j]] = 1; return list[j];
     }
     function card(p, cx, kind, i) {
-      var col = COL(p.sq), y0 = 640, w = 350, h = 210, isTop = kind === 'top';
+      var col = COL(p.sq), y0 = Y0C, w = 350, h = 210, isTop = kind === 'top';
       x.fillStyle = 'rgba(255,255,255,0.04)'; x.fillRect(cx - w / 2, y0, w, h);
       x.strokeStyle = isTop ? '#5fd38a' : '#f58a8d'; x.lineWidth = 3; x.strokeRect(cx - w / 2 + 1.5, y0 + 1.5, w - 3, h - 3);
       x.fillStyle = isTop ? '#5fd38a' : '#f58a8d'; x.font = '900 24px ' + DISP; x.textAlign = 'center';
@@ -2868,7 +2906,7 @@ try {
     var cxs = [230, 600, 1000, 1370];
     tops.forEach(function (p, i) { card(p, cxs[i], 'top', i); });
     flops.forEach(function (p, i) { card(p, cxs[2 + i], 'flop', i); });
-    x.fillStyle = '#838c95'; x.font = '600 20px ' + BODY; x.textAlign = 'center'; x.fillText('LONEBURDEGAZZ 2.0', W / 2, 882);
+    x.fillStyle = '#838c95'; x.font = '600 20px ' + BODY; x.textAlign = 'center'; x.fillText('LONEBURDEGAZZ 2.0', W / 2, H - 18);
   }
   function pagBlob() { return new Promise(function (ok) { $('#pagcanvas').toBlob(function (b) { ok(b); }, 'image/png'); }); }
   $('#pagbox').addEventListener('toggle', function () { if ($('#pagbox').open) drawPag(); });
