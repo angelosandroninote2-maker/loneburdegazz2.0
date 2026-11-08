@@ -13,7 +13,7 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>LONEBURDEGAZZ 2.0</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800;900&family=Barlow:ital,wght@0,400;0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
 /* Layout: tabellone di punteggio. Un verdetto grande in alto, poi mappe, premi e tabella giocatori. */
 :root {
@@ -29,8 +29,8 @@
   --ros-ink: #b32626;
   --sq0: var(--blu); --sq1: var(--ros); --sq0-ink: var(--blu-ink); --sq1-ink: var(--ros-ink);
   --focus: #12171c;
-  --f-display: "Big Shoulders Display", "Arial Narrow", Impact, sans-serif;
-  --f-body: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-display: "Barlow Condensed", "Arial Narrow", Impact, sans-serif;
+  --f-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
   --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
 }
 @media (prefers-color-scheme: dark) {
@@ -198,8 +198,38 @@ dl.kv dt { color: var(--ink2); } dl.kv dd { margin: 0; font-weight: 700; text-al
 .foot { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); padding-top: 18px; }
 
 /* navigazione e archivio */
-.tabs { display: flex; flex-wrap: wrap; gap: 0 4px; border-bottom: 1px solid var(--ink); margin-bottom: -10px; }
-body.indetail .tabs { display: none; }
+/* menu: barra laterale su computer, barra in basso su telefono */
+.tabs { position: fixed; z-index: 40; display: flex; background: var(--surface); }
+.tabs button { display: flex; align-items: center; justify-content: center; font-family: var(--f-display); font-weight: 700; letter-spacing: .02em; color: var(--muted); background: none; border: 0; cursor: pointer; }
+.tabs button svg { flex-shrink: 0; }
+.tabs button:hover { color: var(--ink); }
+.tabs button[aria-current="page"] { color: var(--ink); }
+.tabs button[aria-current="page"] svg { color: #f0a830; }
+.tabs button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.tabs .cnt { font-family: var(--f-mono); font-size: 10px; color: var(--muted); font-weight: 400; }
+.navlogo { font-family: var(--f-display); font-weight: 900; font-size: 22px; letter-spacing: .02em; color: var(--ink); text-align: center; }
+.navlogo b { color: #f0a830; }
+.navmore[hidden] { display: none !important; }
+@media (min-width: 760px) {
+  body { padding-left: calc(112px + max(16px, env(safe-area-inset-left, 0px))); }
+  .tabs { left: 0; top: 0; bottom: 0; width: 96px; flex-direction: column; gap: 4px; padding: 22px 8px 12px; border-right: 1px solid var(--line); }
+  .navlogo { margin-bottom: 18px; }
+  .tabs button { flex-direction: column; gap: 5px; font-size: 15px; padding: 10px 2px; border-radius: 8px; }
+  .tabs button .nl { display: flex; flex-direction: column; align-items: center; line-height: 1.1; }
+  .tabs button[aria-current="page"] { background: var(--bg); box-shadow: inset 3px 0 0 #f0a830; }
+  .tabs .nalt, .navmore { display: none !important; }
+}
+@media (max-width: 759px) {
+  body { padding-bottom: calc(86px + env(safe-area-inset-bottom, 0px)); }
+  .tabs { left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(5, 1fr); border-top: 1px solid var(--line); padding: 4px 4px calc(4px + env(safe-area-inset-bottom, 0px)); }
+  .navlogo, .tabs .nmore, .tabs .cnt { display: none; }
+  .tabs button { flex-direction: column; gap: 2px; font-size: 13px; padding: 6px 2px; min-height: 54px; }
+  .tabs .nalt.on { color: var(--ink); }
+  .tabs .nalt.on svg { color: #f0a830; }
+  .navmore { position: absolute; right: 8px; bottom: calc(100% + 6px); display: grid; min-width: 180px; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 8px 24px rgba(0,0,0,.25); padding: 4px; }
+  .navmore button { flex-direction: row; justify-content: flex-start; gap: 10px; font-size: 17px; padding: 10px 12px; min-height: 0; }
+}
+@media print { .tabs { display: none !important; } }
 body.indetail .top h1 { font-size: 22px; margin-top: 2px; }
 body.indetail .top { align-items: center; }
 body.indetail .topr { flex-direction: row-reverse; align-items: center; gap: 12px; }
@@ -207,10 +237,6 @@ body.indetail #install { display: none; }
 body.indetail .drop small, body.indetail .cutl { display: none; }
 .cutl { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink2); }
 .cutl input { width: 110px; padding: 5px 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; }
-.tabs button { padding: 10px 16px; font-weight: 600; color: var(--ink2); background: none; cursor: pointer; border: 1px solid transparent; border-bottom: 0; margin-bottom: -1px; }
-.tabs button:hover { color: var(--ink); }
-.tabs button[aria-current="page"] { color: var(--ink); background: var(--bg); border-color: var(--ink); border-bottom: 1px solid var(--bg); }
-.tabs .cnt { font-family: var(--f-mono); font-size: 11px; color: var(--muted); }
 .view { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
 .view[hidden] { display: none !important; }
 .savebar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
@@ -504,12 +530,15 @@ table.ptab tr.psep td { background: var(--ink); color: var(--bg); text-align: le
   </header>
 
   <nav class="tabs" aria-label="Sezioni">
-    <button type="button" data-view="archivio">Elenco battaglie <span class="cnt" id="cnt"></span></button>
-    <button type="button" data-view="classifica">Classifica generale</button>
-    <button type="button" data-view="stagione">Stagione</button>
-    <button type="button" data-view="fazioni">Fazioni</button>
-    <button type="button" data-view="presenze">Presenze</button>
-    <button type="button" data-view="record">Record</button>
+    <div class="navlogo" aria-hidden="true">LB <b>2.0</b></div>
+    <button type="button" data-view="archivio"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span class="nl">Battaglie <span class="cnt" id="cnt"></span></span></button>
+    <button type="button" data-view="classifica"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 1-3 3"/></svg><span class="nl">Classifica</span></button>
+    <button type="button" data-view="stagione"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="1"/><path d="M4 10h16M9 3v4M15 3v4"/></svg><span class="nl">Stagione</span></button>
+    <button type="button" data-view="fazioni"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg><span class="nl">Fazioni</span></button>
+    <button type="button" data-view="presenze" class="nmore"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="1"/><path d="m8 12 3 3 5-6"/></svg><span class="nl">Presenze</span></button>
+    <button type="button" data-view="record" class="nmore"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg><span class="nl">Record</span></button>
+    <button type="button" class="nalt" id="navalt" aria-expanded="false" aria-controls="navmore"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg><span class="nl">Altro</span></button>
+    <div class="navmore" id="navmore" hidden><button type="button" data-view="presenze"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="1"/><path d="m8 12 3 3 5-6"/></svg>Presenze</button><button type="button" data-view="record"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>Record</button></div>
   </nav>
 
   <div class="view" id="v-archivio">
@@ -1677,15 +1706,22 @@ try {
     if (['serata', 'archivio', 'classifica', 'fazioni', 'presenze', 'stagione', 'record'].indexOf(v) < 0) v = 'archivio';
     S.view = v;
     ['serata', 'archivio', 'classifica', 'fazioni', 'presenze', 'stagione', 'record'].forEach(function (x) { $('#v-' + x).hidden = x !== v; });
-    Array.prototype.forEach.call(document.querySelectorAll('.tabs button'), function (a) {
+    Array.prototype.forEach.call(document.querySelectorAll('.tabs button[data-view]'), function (a) {
       if (a.dataset.view === v || (v === 'serata' && a.dataset.view === 'archivio')) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     });
+    var nm = $('#navmore'), na = $('#navalt'); if (nm) { nm.hidden = true; na.setAttribute('aria-expanded', 'false'); na.classList.toggle('on', v === 'presenze' || v === 'record'); }
     if (v === 'fazioni') { try { renderFaz(); } catch (e) {} }
     if (v === 'presenze') { try { renderPres(); } catch (e) {} }
     if (v === 'stagione') { try { SEAS.confirm = false; renderStag(); } catch (e) {} }
     if (v === 'record') { try { renderRec(); } catch (e) {} }
     if (location.hash !== '#' + v) { try { location.hash = v; } catch (e) {} }
   }
+  document.addEventListener('click', function (e) {
+    var na = $('#navalt'), nm = $('#navmore'); if (!na) return;
+    if (e.target.closest('#navalt')) { nm.hidden = !nm.hidden; na.setAttribute('aria-expanded', nm.hidden ? 'false' : 'true'); return; }
+    if (!nm.hidden && !e.target.closest('#navmore')) { nm.hidden = true; na.setAttribute('aria-expanded', 'false'); }
+  });
+  document.addEventListener('keydown', function (e) { var nm = $('#navmore'); if (e.key === 'Escape' && nm && !nm.hidden) { nm.hidden = true; $('#navalt').setAttribute('aria-expanded', 'false'); $('#navalt').focus(); } });
   window.addEventListener('hashchange', function () { var v = (location.hash || '').slice(1); if (v !== S.view) setView(v); });
 
   function renderSave() {
@@ -2147,8 +2183,8 @@ try {
   var fzDrawSeq = 0;
   async function drawFaz() {
     var seq = ++fzDrawSeq, cv = $('#fzcanvas'), x = cv.getContext('2d'), W = 1600, H = 900;
-    var DISP = '"Big Shoulders Display", Impact, "Arial Narrow", sans-serif', BODY = '"Hanken Grotesk", Arial, sans-serif';
-    try { if (document.fonts) await Promise.all([document.fonts.load('900 80px "Big Shoulders Display"'), document.fonts.load('700 26px "Hanken Grotesk"')]); } catch (e) {}
+    var DISP = '"Barlow Condensed", Impact, "Arial Narrow", sans-serif', BODY = '"Barlow", Arial, sans-serif';
+    try { if (document.fonts) await Promise.all([document.fonts.load('900 80px "Barlow Condensed"'), document.fonts.load('800 30px "Barlow Condensed"'), document.fonts.load('700 26px "Barlow"'), document.fonts.load('600 22px "Barlow"'), document.fonts.load('italic 500 18px "Barlow"')]); } catch (e) {}
     var rs = fzRedSide();
     var left = rs === 'T' ? { list: F.red, col: '#e5484d', dark: '#7a1f22', name: 'Squadra Rossa' } : { list: F.blue, col: '#3987e5', dark: '#173f73', name: 'Squadra Blu' };
     var right = rs === 'T' ? { list: F.blue, col: '#3987e5', dark: '#173f73', name: 'Squadra Blu' } : { list: F.red, col: '#e5484d', dark: '#7a1f22', name: 'Squadra Rossa' };
@@ -2965,8 +3001,8 @@ try {
     var V0 = pagVotes(), nMax = Math.max(1, V0.filter(function (p) { return p.sq === 0; }).length, V0.filter(function (p) { return p.sq === 1; }).length);
     var RH = 58, Y0C = 320 + nMax * RH + 28, H = Y0C + 210 + 56;
     if (cv.height !== H) cv.height = H;
-    var DISP = '"Big Shoulders Display", Impact, "Arial Narrow", sans-serif', BODY = '"Hanken Grotesk", Arial, sans-serif';
-    try { if (document.fonts) await Promise.all([document.fonts.load('900 80px "Big Shoulders Display"'), document.fonts.load('700 26px "Hanken Grotesk"')]); } catch (e) {}
+    var DISP = '"Barlow Condensed", Impact, "Arial Narrow", sans-serif', BODY = '"Barlow", Arial, sans-serif';
+    try { if (document.fonts) await Promise.all([document.fonts.load('900 80px "Barlow Condensed"'), document.fonts.load('800 30px "Barlow Condensed"'), document.fonts.load('700 26px "Barlow"'), document.fonts.load('600 22px "Barlow"'), document.fonts.load('italic 500 18px "Barlow"')]); } catch (e) {}
     var V = V0, imgs = {}, CM = pagComments(V), RN = [];
     try { RN = await recNew(); } catch (e) { RN = []; }
     if (seq !== pagSeq) return;
