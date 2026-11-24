@@ -281,6 +281,20 @@ html { -webkit-tap-highlight-color: transparent; }
   .navmore .navacc { font-family: var(--f-body); font-size: 14px; font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--line); border-radius: 0; white-space: normal; text-align: left; }
 }
 
+
+/* ---------- correzioni debug ---------- */
+body:not(.v-archivio):not(.v-serata) #msg { display: none !important; }
+@media (max-width: 759px) {
+  [data-fzmove] { min-height: 36px; padding: 6px 10px !important; }
+  select, #rsel, #ssel { min-height: 40px; font-size: 16px; }
+  #sqname0, #sqname1 { min-height: 40px; font-size: 16px; }
+  td.who button[data-open] { min-height: 36px; padding: 6px 0; }
+  .chip { min-height: 34px; padding: 6px 11px; }
+  .navmore .navacc { min-height: 44px; padding: 10px 12px; }
+  .ptch button.ptn.x { min-height: 36px; padding: 6px 8px; }
+  .kbar i { max-width: 34px; }
+  .ptmain { -webkit-overflow-scrolling: touch; }
+}
 /* ---------- PLOTONE ---------- */
 .tabs button img.ic { width: 30px; height: 30px; border-radius: 50%; }
 @media (max-width: 759px) { .navmore button img.ic { width: 26px; height: 26px; } }
@@ -1938,7 +1952,7 @@ try {
     if (PT.view === 'tempo') {
       main.innerHTML = '<div class="pttl">' + PT_TL.map(function (r) { return '<div class="pty"><span>' + r[0] + '</span><div>' + (r[1] ? '<p>' + esc(r[1]) + '</p>' : '<p>&nbsp;</p>') + '<div class="ptch">' + r[2].map(function (nm) { var n = ptFind(nm) || [nm, '', 'x', []]; return ptNode([n[0], '', n[2], []]); }).join('') + '</div></div></div>'; }).join('') + '</div>';
     } else {
-      var Lo = ptLayout(), avail = Math.max(320, main.clientWidth - 4), sc = Math.max(0.5, Math.min(1, avail / Lo.W));
+      var Lo = ptLayout(), avail = Math.max(320, main.clientWidth - 4), sc = Math.max(window.matchMedia && matchMedia('(max-width: 759px)').matches ? 0.72 : 0.5, Math.min(1, avail / Lo.W));
       var paths = Lo.edges.map(function (e) { var a = e[0], b = e[1], y1 = a.d * Lo.LV + 24 + ptH(a) + 4, y2 = b.d * Lo.LV + 24 - (b.n[1] ? 20 : 6), ym = y2 - 16; return '<path d="M' + a.x + ' ' + y1 + 'V' + ym + 'H' + b.x + 'V' + y2 + '"' + (Lo.live[b.n[0]] ? ' class="ea"' : '') + '/>'; }).join('');
       var nodes = Lo.nodes.map(function (m) { return ptNode(m.n, 'left:' + (m.x - m.w / 2) + 'px;top:' + (m.d * Lo.LV + 24) + 'px;width:' + m.w + 'px'); }).join('');
       PT.cardTop = Math.round((Lo.LV * 4 + 24 + 60) * sc);
@@ -2101,8 +2115,9 @@ try {
       return;
     }
     var by = {}, rs = $('#rsel') ? $('#rsel').value : 'all', rdocs = A.docs.slice();
-    if (rs === 'cur') { var cs = curSeason(); rdocs = seasonDocs(cs); note.textContent = cs.label + ' · ' + plural(rdocs.length, 'serata', 'serate'); }
-    if (!rdocs.length) { box.innerHTML = '<div class="empty">Nessuna serata in questa stagione. Scegli “Tutte le stagioni”.</div>'; return; }
+    var rankNote = '';
+    if (rs === 'cur') { var cs = curSeason(); rdocs = seasonDocs(cs); note.textContent = cs.label + ' · ' + plural(rdocs.length, 'serata', 'serate');
+      if (!rdocs.length) { rdocs = A.docs.slice(); note.textContent = 'Tutte le stagioni · ' + plural(rdocs.length, 'serata', 'serate'); rankNote = '<p class="note" style="margin-bottom:10px"><b>' + esc(cs.label) + ' non ha ancora serate:</b> intanto mostro la classifica di tutte le stagioni.</p>'; } }
     rdocs.sort(function (a, b) { return a.ts - b.ts; }).forEach(function (d) {
       (d.players || []).forEach(function (p) {
         var a = by[p.k] || (by[p.k] = { key: p.k, name: p.n, ev: 0, evw: 0, maps: 0, mw: 0, kills: 0, deaths: 0, assists: 0, hs: 0 });
@@ -2132,7 +2147,7 @@ try {
         '<td>' + nf.format(p.deaths) + '</td><td>' + nf.format(p.assists) + '</td><td>' + p.kd.toFixed(2) + '</td><td>' + Math.round(p.hsp * 100) + '%</td><td>' + p.kpm.toFixed(1) + '</td></tr>';
     }).join('');
     note.textContent = 'Su ' + plural(A.docs.length, 'battaglia', 'battaglie') + ' · solo giocatori umani';
-    box.innerHTML = '<div class="tablewrap"><table style="min-width:860px">' + head + '<tbody>' + body + '</tbody></table></div>' +
+    box.innerHTML = rankNote + '<div class="tablewrap"><table style="min-width:860px">' + head + '<tbody>' + body + '</tbody></table></div>' +
       '<p class="note" style="margin-top:12px">“Serate vinte” conta le serate in cui la squadra del giocatore ha vinto. La squadra è quella dedotta per ogni serata.</p>';
   }
 
